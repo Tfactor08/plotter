@@ -131,8 +131,12 @@ Token next(Lexer *l)
                 l->pos += 1;
         }
         size_t num_len = l->pos - start;
+        if (num_len > MAX_STRING_LEN) {
+            fprintf(stderr, "ERROR: max number length is %d\n", MAX_STRING_LEN);
+            exit(1);
+        }
         char *num_start = l->content + start;
-        char num_str[256];
+        char num_str[MAX_STRING_LEN+1];
         memcpy(num_str, num_start, num_len);
         num_str[num_len] = '\0';
         if (!is_float) {
@@ -147,7 +151,7 @@ Token next(Lexer *l)
         while (l->pos < l->count && isalpha(l->content[l->pos]))
             l->pos += 1;
         size_t string_len = l->pos - start;
-        if (string_len >= MAX_STRING_LEN) {
+        if (string_len > MAX_STRING_LEN) {
             fprintf(stderr, "ERROR: max id length is %d\n", MAX_STRING_LEN);
             exit(1);
         }
