@@ -26,7 +26,8 @@ typedef enum {
     TK_DIV,
     TK_POWER,
     TK_FUNC,
-    TK_EOF
+    TK_EOF,
+    TK_ERROR
 } TokenKind;
 
 typedef struct Token {
@@ -37,7 +38,7 @@ typedef struct Token {
         char  c;
         char  s[MAX_STRING_LEN+1];
     } value;
-    void (*print_self)(struct Token *t);
+    void (*print)(struct Token *self);
 } Token;
 
 typedef struct {
@@ -71,33 +72,39 @@ static void token_print_func(Token *tk)
     printf("func: %s\n", tk->value.s);
 }
 
+static void token_print_error(Token *tk)
+{
+    printf("error: %s\n", tk->value.s);
+}
+
 static Token token_create_int(int val)
 {
-    Token tk = { .kind = TK_INT, .value.i = val, .print_self = &token_print_int };
+    Token tk = { .kind = TK_INT, .value.i = val, .print = &token_print_int };
     return tk;
 }
 
 static Token token_create_dec(float val)
 {
-    Token tk = { .kind = TK_DEC, .value.f = val, .print_self = &token_print_dec };
+    Token tk = { .kind = TK_DEC, .value.f = val, .print = &token_print_dec };
     return tk;
 }
 
 static Token token_create_literal(TokenKind kind, char val)
 {
     assert(kind == TK_OPENP || kind == TK_CLOSEP || kind == TK_PLUS || kind == TK_MINUS || kind == TK_MULT || kind == TK_DIV || kind == TK_POWER);
-    Token tk = { .kind = kind, .value.c = val, .print_self = &token_print_literal };
+    Token tk = { .kind = kind, .value.c = val, .print = &token_print_literal };
     return tk;
 }
 
 static Token token_create_string(TokenKind kind, const char *val)
 {
-    assert(kind == TK_ID || kind == TK_FUNC);
+    assert(kind == TK_ID || kind == TK_FUNC || kind == TK_ERROR);
     assert(strlen(val) <= MAX_STRING_LEN);
     Token tk = { .kind = kind };
     strcpy(tk.value.s, val);
-    if (kind == TK_ID) tk.print_self = &token_print_id;
-    else if (kind == TK_FUNC) tk.print_self = &token_print_func;
+    if (kind == TK_ID) tk.print = &token_print_id;
+    else if (kind == TK_FUNC) tk.print = &token_print_func;
+    else if (kind == TK_ERROR) tk.print = &token_print_error;
     return tk;
 }
 
@@ -107,7 +114,39 @@ static Token token_create_eof()
     return tk;
 }
 
-Token next(Lexer *l)
+static Token token_create_error(const char *msg)
+{
+    assert(strlen(msg) <= MAX_STRING_LEN);
+    Token tk = { .kind = TK_ERROR };
+    strcpy(tk.value.s, msg);
+    return tk;
+}
+
+int token_get_int(Token *tk)
+{
+    assert(tk->kind == TK_INT);
+    return tk->value.i;
+}
+
+float token_get_dec(Token *tk)
+{
+    assert(tk->kind == TK_DEC);
+    return tk->value.f;
+}
+
+char *token_get_string(Token *tk)
+{
+    assert(tk->kind == TK_ID || tk->kind == TK_FUNC || tk->kind == TK_ERROR);
+    return tk->value.s;
+}
+
+char token_get_literal(Token *tk)
+{
+    assert(tk->kind == TK_OPENP || tk->kind == TK_CLOSEP || tk->kind == TK_PLUS || tk->kind == TK_MINUS || tk->kind == TK_MULT || tk->kind == TK_DIV || tk->kind == TK_POWER);
+    return tk->value.c;
+}
+
+Token token_next(Lexer *l)
 {
     while (l->pos < l->count && isspace(l->content[l->pos]))
         l->pos += 1;
@@ -132,8 +171,9 @@ Token next(Lexer *l)
         }
         size_t num_len = l->pos - start;
         if (num_len > MAX_STRING_LEN) {
-            fprintf(stderr, "ERROR: max number length is %d\n", MAX_STRING_LEN);
-            exit(1);
+            char error_msg[MAX_STRING_LEN+1];
+            snprintf("max number length is %d\n", MAX_STRING_LEN+1, error_msg, MAX_STRING_LEN);
+            return token_create_error(error_msg);
         }
         char *num_start = l->content + start;
         char num_str[MAX_STRING_LEN+1];
@@ -152,8 +192,9 @@ Token next(Lexer *l)
             l->pos += 1;
         size_t string_len = l->pos - start;
         if (string_len > MAX_STRING_LEN) {
-            fprintf(stderr, "ERROR: max id length is %d\n", MAX_STRING_LEN);
-            exit(1);
+            char error_msg[MAX_STRING_LEN+1];
+            snprintf(error_msg, MAX_STRING_LEN+1, "max id length is %d\n", MAX_STRING_LEN);
+            return token_create_error(error_msg);
         }
         char *string_start = l->content + start;
         char string[MAX_STRING_LEN];
@@ -185,14 +226,15 @@ Token next(Lexer *l)
         l->pos += 1;
         return token_create_literal(TK_CLOSEP, c);
     } else {
-        fprintf(stderr, "ERROR: unknown symbol at %zu\n", l->pos);
-        exit(1);
+        char error_msg[MAX_STRING_LEN+1];
+        snprintf(error_msg, MAX_STRING_LEN+1, "unexpected symbol %c at %zu\n", c, l->pos);
+        return token_create_error(error_msg);
     }
 }
 
 int main(void)
 {
-    char *source = "sin * cos x - -.69 + duck / 2^duck";
+    char *source = "sin * cos x - -.69 + duck / 2^duck?";
     Lexer l = {
         .content = source,
         .count = strlen(source),
@@ -201,7 +243,11 @@ int main(void)
     Token tk = {0};
 
     printf("%s\n", source);
-    while ((tk = next(&l)).kind != TK_EOF) {
-        tk.print_self(&tk);
+    while ((tk = token_next(&l)).kind != TK_EOF) {
+        if (tk.kind == TK_ERROR) {
+            fprintf(stderr, "ERROR (LEXER): %s\n", token_get_string(&tk));
+            return 1;
+        }
+        tk.print(&tk);
     }
 }
