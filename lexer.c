@@ -42,39 +42,41 @@ typedef struct Token {
 } Token;
 
 typedef struct {
-    char *content;
+    const char *content;
     size_t count;
     size_t pos;
+    Token current;
+    Token next;
 } Lexer;
 
 static void token_print_int(Token *tk)
 {
-    printf("int: %d\n", tk->value.i);
+    printf("Int: %d\n", tk->value.i);
 }
 
 static void token_print_dec(Token *tk)
 {
-    printf("dec: %f\n", tk->value.f);
+    printf("Dec: %f\n", tk->value.f);
 }
 
 static void token_print_literal(Token *tk)
 {
-    printf("literal: %c\n", tk->value.c);
+    printf("Literal: %c\n", tk->value.c);
 }
 
 static void token_print_id(Token *tk)
 {
-    printf("id: %s\n", tk->value.s);
+    printf("Id: %s\n", tk->value.s);
 }
 
 static void token_print_func(Token *tk)
 {
-    printf("func: %s\n", tk->value.s);
+    printf("Func: %s\n", tk->value.s);
 }
 
 static void token_print_error(Token *tk)
 {
-    printf("error: %s\n", tk->value.s);
+    printf("Error: %s\n", tk->value.s);
 }
 
 static Token token_create_int(int val)
@@ -146,7 +148,7 @@ char token_get_literal(Token *tk)
     return tk->value.c;
 }
 
-Token token_next(Lexer *l)
+static Token token_next(Lexer *l)
 {
     while (l->pos < l->count && isspace(l->content[l->pos]))
         l->pos += 1;
@@ -175,7 +177,7 @@ Token token_next(Lexer *l)
             snprintf("max number length is %d\n", MAX_STRING_LEN+1, error_msg, MAX_STRING_LEN);
             return token_create_error(error_msg);
         }
-        char *num_start = l->content + start;
+        const char *num_start = l->content + start;
         char num_str[MAX_STRING_LEN+1];
         memcpy(num_str, num_start, num_len);
         num_str[num_len] = '\0';
@@ -196,7 +198,7 @@ Token token_next(Lexer *l)
             snprintf(error_msg, MAX_STRING_LEN+1, "max id length is %d\n", MAX_STRING_LEN);
             return token_create_error(error_msg);
         }
-        char *string_start = l->content + start;
+        const char *string_start = l->content + start;
         char string[MAX_STRING_LEN];
         memcpy(string, string_start, string_len);
         string[string_len] = '\0';
@@ -232,18 +234,36 @@ Token token_next(Lexer *l)
     }
 }
 
+Token lexer_next(Lexer *l)
+{
+    l->current = l->next;
+    l->next = token_next(l);
+    return l->current;
+}
+
+Token lexer_peek(Lexer *l)
+{
+    return l->next;
+}
+
+Lexer lexer_create(const char *content)
+{
+    Lexer l = {
+        .content = content,
+        .count = strlen(content),
+    };
+    l.next = token_next(&l);
+    return l;
+}
+
 int main(void)
 {
     char *source = "sin * cos x - -.69 + duck / 2^duck?";
-    Lexer l = {
-        .content = source,
-        .count = strlen(source),
-        .pos = 0
-    };
+    Lexer lexer = lexer_create(source);
     Token tk = {0};
 
     printf("%s\n", source);
-    while ((tk = token_next(&l)).kind != TK_EOF) {
+    while ((tk = lexer_next(&lexer)).kind != TK_EOF) {
         if (tk.kind == TK_ERROR) {
             fprintf(stderr, "ERROR (LEXER): %s\n", token_get_string(&tk));
             return 1;
