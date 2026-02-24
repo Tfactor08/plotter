@@ -23,13 +23,7 @@ typedef struct {
     NODETREE_HEAD
     NodeTree *left;
     NodeTree *right;
-} NodeAdd;
-
-typedef struct {
-    NODETREE_HEAD
-    NodeTree *left;
-    NodeTree *right;
-} NodeSubtract;
+} NodeBinary;
 
 typedef struct {
     NODETREE_HEAD
@@ -41,31 +35,44 @@ typedef struct {
     int val;
 } NodeInteger;
 
-NodeAdd *node_add_create(NodeTree *left, NodeTree *right)
-{
-    float node_add_eval(void *);
-    char *node_add_print(void *);
+#define NODE_BINARY_CREATE_FUNC(name)                                 \
+    NodeBinary *node_##name##_create(NodeTree *left, NodeTree *right) \
+    {                                                                 \
+        float node_##name##_eval(void *);                             \
+        char *node_##name##_print(void *);                            \
+        NodeBinary *node = malloc(sizeof(NodeBinary));                \
+        node->eval = &node_##name##_eval;                             \
+        node->print = &node_##name##_print;                           \
+        node->left = left;                                            \
+        node->right = right;                                          \
+        return node;                                                  \
+    }                                                                 \
 
-    NodeAdd *node = malloc(sizeof(NodeAdd));
-    node->eval = &node_add_eval;
-    node->print = &node_add_print;
-    node->left = left;
-    node->right = right;
-    return node;
-}
+#define NODE_BINARY_EVAL_FUNC(name, operator)  \
+    float node_##name##_eval(void *self)       \
+    {                                          \
+        NodeBinary *node = (NodeBinary *)self; \
+        NodeTree *l = node->left;              \
+        NodeTree *r = node->right;             \
+        return l->eval(l) operator r->eval(r); \
+    }                                          \
 
-NodeAdd *node_subtract_create(NodeTree *left, NodeTree *right)
-{
-    float node_subtract_eval(void *);
-    char *node_subtract_print(void *);
+#define NODE_BINARY_PRINT_FUNC(name, operator)                              \
+    char *node_##name##_print(void *self)                                   \
+    {                                                                       \
+        NodeBinary *node = (NodeBinary *)self;                              \
+        char *right_string = node->right->print(node->right);               \
+        char *left_string = node->left->print(node->left);                  \
+        size_t result_len = strlen(left_string) + strlen(right_string) + 6; \
+        char *result = malloc(sizeof(char) * result_len);                   \
+        sprintf(result, "(%s #operator %s)", left_string, right_string);    \
+        return result;                                                      \
+    }                                                                       \
 
-    NodeAdd *node = malloc(sizeof(NodeAdd));
-    node->eval = &node_subtract_eval;
-    node->print = &node_subtract_print;
-    node->left = left;
-    node->right = right;
-    return node;
-}
+NODE_BINARY_CREATE_FUNC(add);
+NODE_BINARY_CREATE_FUNC(sub);
+NODE_BINARY_CREATE_FUNC(mult);
+NODE_BINARY_CREATE_FUNC(div);
 
 NodeNegate *node_negate_create(NodeTree *arg)
 {
@@ -91,21 +98,10 @@ NodeInteger *node_integer_create(int val)
     return node;
 }
 
-float node_add_eval(void *self)
-{
-    NodeAdd *node = (NodeAdd *)self;
-    NodeTree *l = node->left;
-    NodeTree *r = node->right;
-    return l->eval(l) + r->eval(r);
-}
-
-float node_subtract_eval(void *self)
-{
-    NodeSubtract *node = (NodeSubtract *)self;
-    NodeTree *l = node->left;
-    NodeTree *r = node->right;
-    return l->eval(l) - r->eval(r);
-}
+NODE_BINARY_EVAL_FUNC(add, +);
+NODE_BINARY_EVAL_FUNC(sub, -);
+NODE_BINARY_EVAL_FUNC(mult, *);
+NODE_BINARY_EVAL_FUNC(div, /);
 
 float node_negate_eval(void *self)
 {
@@ -120,27 +116,10 @@ float node_integer_eval(void *self)
     return node->val;
 }
 
-char *node_add_print(void *self)
-{
-    NodeAdd *node = (NodeAdd *)self;
-    char *right_string = node->right->print(node->right);
-    char *left_string = node->left->print(node->left);
-    size_t result_len = strlen(left_string) + strlen(right_string) + 6;
-    char *result = malloc(sizeof(char) * result_len);
-    sprintf(result, "(%s + %s)", left_string, right_string);
-    return result;
-}
-
-char *node_subtract_print(void *self)
-{
-    NodeSubtract *node = (NodeSubtract *)self;
-    char *right_string = node->right->print(node->right);
-    char *left_string = node->left->print(node->left);
-    size_t result_len = strlen(left_string) + strlen(right_string) + 6;
-    char *result = malloc(sizeof(char) * result_len);
-    sprintf(result, "(%s - %s)", left_string, right_string);
-    return result;
-}
+NODE_BINARY_PRINT_FUNC(add, +);
+NODE_BINARY_PRINT_FUNC(sub, -);
+NODE_BINARY_PRINT_FUNC(mult, *);
+NODE_BINARY_PRINT_FUNC(div, /);
 
 char *node_negate_print(void *self)
 {
@@ -162,17 +141,38 @@ char *node_integer_print(void *self)
 
 NodeTree *expression(Lexer *l)
 {
+    NodeTree *term(Lexer *);
+
+    NodeTree *a = term(l);
+    while (true) {
+        if (lexer_current(l).kind == TK_PLUS) {
+            lexer_next(l);
+            NodeTree *b = term(l);
+            a = (NodeTree *)node_add_create(a, b);
+        } else if (lexer_current(l).kind == TK_MINUS) {
+            lexer_next(l);
+            NodeTree *b = term(l);
+            a = (NodeTree *)node_sub_create(a, b);
+        } else {
+            return a;
+        }
+    }
+}
+
+NodeTree *term(Lexer *l)
+{
     NodeTree *factor(Lexer *);
 
     NodeTree *a = factor(l);
     while (true) {
-        lexer_next(l);
-        if (lexer_current(l).kind == TK_PLUS) {
+        if (lexer_current(l).kind == TK_MULT) {
+            lexer_next(l);
             NodeTree *b = factor(l);
-            a = (NodeTree *)node_add_create(a, b);
-        } else if (lexer_current(l).kind == TK_MINUS) {
+            a = (NodeTree *)node_mult_create(a, b);
+        } else if (lexer_current(l).kind == TK_DIV) {
+            lexer_next(l);
             NodeTree *b = factor(l);
-            a = (NodeTree *)node_subtract_create(a, b);
+            a = (NodeTree *)node_div_create(a, b);
         } else {
             return a;
         }
@@ -181,28 +181,32 @@ NodeTree *expression(Lexer *l)
 
 NodeTree *factor(Lexer *l)
 {
-    Token tk = lexer_next(l);
+    Token tk = lexer_current(l);
     if (tk.kind == TK_INT) {
+        lexer_next(l);
         return (NodeTree *)node_integer_create(token_get_int(&tk));
     } else if (tk.kind == TK_MINUS) {
+        lexer_next(l);
         return (NodeTree *)node_negate_create(factor(l));
     } else if (tk.kind == TK_OPENP) {
+        lexer_next(l);
         NodeTree *a = expression(l);
         if (lexer_current(l).kind == TK_CLOSEP) {
+            lexer_next(l);
             return a;
         } else {
-            fprintf(stderr, "ERROR: unmatching )\n");
+            fprintf(stderr, "ERROR (parser): unmatching )\n");
             exit(1);
         }
     } else {
-        fprintf(stderr, "ERROR: unknown token\n");
+        fprintf(stderr, "ERROR (parser): unknown token\n");
         exit(1);
     }
 }
 
 int main(void)
 {
-    char *source = "2 + 3";
+    char *source = "4 - (1 / 1)";
     Lexer lexer = lexer_create(source);
 
     NodeTree *result = expression(&lexer);
@@ -210,7 +214,7 @@ int main(void)
         fprintf(stderr, "ERROR: smth went wrong\n");
         exit(1);
     }
-    printf("%f\n", result->eval(result));
+    printf("%.2f\n", result->eval(result));
 
     return 0;
 }

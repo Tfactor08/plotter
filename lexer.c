@@ -257,6 +257,7 @@ Lexer lexer_create(const char *content)
         .content = content,
         .count = strlen(content),
     };
+    l.current = token_next(&l);
     l.next = token_next(&l);
     return l;
 }
