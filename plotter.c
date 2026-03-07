@@ -25,7 +25,6 @@ int main(int argc, char **argv)
     strncpy(expression, argv[1], strlen(expression));
     NodeTree *tree = parse(expression);
 
-#if 1
     InitWindow(WIDTH, HEIGHT, "Plotter");
     SetTargetFPS(5);
 
@@ -68,7 +67,6 @@ int main(int argc, char **argv)
     }
 
     CloseWindow();
-#endif
 
     return 0;
 }
