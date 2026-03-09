@@ -1,5 +1,4 @@
 -- use arena allocations in the remaining functions;
--- think over embedding arena struct inside the tree (this would simplify the interface);
--- add StringBuilder to the utils and use it;
+-- think over making the parser a separate compilation unit;
 -- add the remaining operations to the parser;
 -- support factors in front of variables and functions (e.g. 2x).
