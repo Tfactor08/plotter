@@ -26,8 +26,6 @@ typedef struct {
     Region *current;
 } Arena;
 
-// TODO: manage errors
-
 static Region *region_create(size_t capacity)
 {
     Region *region = malloc(sizeof(Region) + capacity);

@@ -1,8 +1,9 @@
 /*
-Id:      {char}+
-Integer: {digit}+(.{digit}+)? | .{digit}+
-Func:    sin | cos
+Id:       {char}+
+Number:   {digit}+(.{digit}+)? | .{digit}+
+Function: sin | cos
 */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -30,7 +31,14 @@ typedef enum {
     TK_ERROR
 } TokenKind;
 
-typedef struct Token {
+typedef enum {
+    SIN,
+    COS
+} FUNC; 
+
+typedef struct Token Token;
+
+struct Token {
     TokenKind kind;
     union {
         int   i;
@@ -38,8 +46,8 @@ typedef struct Token {
         char  c;
         char  s[MAX_STRING_LEN+1];
     } value;
-    void (*print)(struct Token *self);
-} Token;
+    void (*print)(Token *self);
+};
 
 typedef struct {
     const char *content;
@@ -59,6 +67,20 @@ static void token_print_dec(Token *tk)
     printf("Dec: %f\n", tk->value.f);
 }
 
+static void token_print_func(Token *tk)
+{
+    switch (tk->value.i) {
+        case SIN:
+            printf("Func: %s\n", SIN_STR);
+            break;
+        case COS:
+            printf("Func: %s\n", COS_STR);
+            break;
+        default:
+            assert(0 && "Unhandled function\n");
+    }
+}
+
 static void token_print_literal(Token *tk)
 {
     printf("Literal: %c\n", tk->value.c);
@@ -67,11 +89,6 @@ static void token_print_literal(Token *tk)
 static void token_print_id(Token *tk)
 {
     printf("Id: %s\n", tk->value.s);
-}
-
-static void token_print_func(Token *tk)
-{
-    printf("Func: %s\n", tk->value.s);
 }
 
 static void token_print_error(Token *tk)
@@ -91,6 +108,12 @@ static Token token_create_dec(float val)
     return tk;
 }
 
+static Token token_create_func(FUNC func)
+{
+    Token tk = { .kind = TK_FUNC, .value.i = func, .print = &token_print_func };
+    return tk;
+}
+
 static Token token_create_literal(TokenKind kind, char val)
 {
     assert(kind == TK_OPENP || kind == TK_CLOSEP || kind == TK_PLUS || kind == TK_MINUS || kind == TK_MULT || kind == TK_DIV || kind == TK_POWER);
@@ -100,7 +123,7 @@ static Token token_create_literal(TokenKind kind, char val)
 
 static Token token_create_string(TokenKind kind, const char *val)
 {
-    assert(kind == TK_ID || kind == TK_FUNC || kind == TK_ERROR);
+    assert(kind == TK_ID || kind == TK_ERROR);
     assert(strlen(val) <= MAX_STRING_LEN);
     Token tk = { .kind = kind };
     strcpy(tk.value.s, val);
@@ -126,7 +149,7 @@ static Token token_create_error(const char *msg)
 
 int token_get_int(Token *tk)
 {
-    assert(tk->kind == TK_INT);
+    assert(tk->kind == TK_INT || tk->kind == TK_FUNC);
     return tk->value.i;
 }
 
@@ -136,9 +159,15 @@ float token_get_dec(Token *tk)
     return tk->value.f;
 }
 
+FUNC token_get_func(Token *tk)
+{
+    assert(tk->kind == TK_FUNC);
+    return tk->value.i;
+}
+
 char *token_get_string(Token *tk)
 {
-    assert(tk->kind == TK_ID || tk->kind == TK_FUNC || tk->kind == TK_ERROR);
+    assert(tk->kind == TK_ID || tk->kind == TK_ERROR);
     return tk->value.s;
 }
 
@@ -202,8 +231,10 @@ static Token token_next(Lexer *l)
         char string[MAX_STRING_LEN];
         memcpy(string, string_start, string_len);
         string[string_len] = '\0';
-        if (strcmp(string, SIN_STR) == 0 || strcmp(string, COS_STR) == 0)
-            return token_create_string(TK_FUNC, string);
+        if (strcmp(string, SIN_STR) == 0)
+            return token_create_func(SIN);
+        else if (strcmp(string, COS_STR) == 0)
+            return token_create_func(COS);
         else
             return token_create_string(TK_ID, string);
     } else if (c == '+') {
@@ -270,12 +301,13 @@ int main(void)
     Token tk = {0};
 
     printf("%s\n", source);
-    while ((tk = lexer_next(&lexer)).kind != TK_EOF) {
+    do {
+        tk = lexer_current(&lexer);
         if (tk.kind == TK_ERROR) {
             fprintf(stderr, "ERROR (LEXER): %s\n", token_get_string(&tk));
             return 1;
         }
         tk.print(&tk);
-    }
+    } while ((tk = lexer_next(&lexer)).kind != TK_EOF);
 }
 #endif

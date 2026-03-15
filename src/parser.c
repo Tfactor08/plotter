@@ -2,7 +2,7 @@
 E -> T {+|- T}
 T -> P {*|/ P}
 P -> F {^ F}
-F -> Id | Integer | (E) | -F | Func(E)
+F -> Id | Number | (E) | -F | Func(E)
 */
 
 #include "lexer.c"
@@ -18,11 +18,6 @@ typedef struct {
     NodeTree *left;
     NodeTree *right;
 } NodeBinary;
-
-typedef enum {
-    SIN,
-    COS
-} FUNC; 
 
 typedef struct {
     NODETREE_HEAD
@@ -91,8 +86,7 @@ NodeFunc *node_func_create(NodeTree *arg, FUNC func)
     float node_func_eval(void *, float);
     char *node_func_print(void *);
 
-    // TODO: use arena
-    NodeFunc *node = malloc(sizeof(NodeFunc));
+    NodeFunc *node = PUSH_STRUCT(&arena, NodeFunc);
     node->eval = &node_func_eval;
     node->print = &node_func_print;
     node->func = func;
@@ -105,8 +99,7 @@ NodeNegate *node_negate_create(NodeTree *arg)
     float node_negate_eval(void *, float);
     char *node_negate_print(void *);
 
-    // TODO: use arena
-    NodeNegate *node = malloc(sizeof(NodeNegate));
+    NodeNegate *node = PUSH_STRUCT(&arena, NodeNegate);
     node->eval = &node_negate_eval;
     node->print = &node_negate_print;
     node->arg = arg;
@@ -130,12 +123,10 @@ NodeId *node_id_create(char *string)
     float node_id_eval(void *, float);
     char *node_id_print(void *);
 
-    // TODO: use arena
-    NodeId *node = malloc(sizeof(NodeId));
+    NodeId *node = PUSH_STRUCT(&arena, NodeId);
     node->eval = &node_id_eval;
     node->print = &node_id_print;
-    // TODO: use arena
-    node->string = malloc(sizeof(char) * (strlen(string) + 1));
+    node->string = PUSH_STRING(&arena, strlen(string) + 1);
     strcpy(node->string, string);
     return node;
 }
@@ -197,8 +188,7 @@ char *node_func_print(void *self)
             assert(0 && "Unhandled function");
     }
     size_t result_len = strlen(arg_string) + strlen(func_str) + 5;
-    // TODO: use arena
-    char *result = malloc(sizeof(char) * result_len);
+    char *result = PUSH_STRING(&arena, result_len);
     sprintf(result, "(%s(%s))", func_str, arg_string);
     return result;
 }
@@ -208,8 +198,7 @@ char *node_negate_print(void *self)
     NodeNegate *node = (NodeNegate *)self;
     char *arg_string = node->arg->print(node->arg);
     size_t result_len = strlen(arg_string) + 4;
-    // TODO: use arena
-    char *result = malloc(sizeof(char) * result_len);
+    char *result = PUSH_STRING(&arena, result_len);
     sprintf(result, "-(%s)", arg_string);
     return result;
 }
@@ -314,15 +303,17 @@ NodeTree *factor(Lexer *l)
         lexer_next(l);
         NodeTree *e = expression(l);
         if (!e) return NULL;
-        char *func_str = token_get_string(&func_tk);
+        FUNC func_kind = token_get_func(&func_tk);
+        func = node_func_create(e, func_kind);
+        //char *func_str = token_get_string(&func_tk);
         // TODO: inconsistency: in the lexer function token is defined by the corresponding string but in the parser
         // by the FUNC enum => we have to compare strings thus creating an overhead
-        if (strcmp(func_str, SIN_STR) == 0)
-            func = node_func_create(e, SIN);
-        else if (strcmp(func_str, COS_STR) == 0)
-            func = node_func_create(e, COS);
-        else
-            assert(0 && "Unhandled function");
+        //if (strcmp(func_str, SIN_STR) == 0)
+        //    func = node_func_create(e, SIN);
+        //else if (strcmp(func_str, COS_STR) == 0)
+        //    func = node_func_create(e, COS);
+        //else
+        //    assert(0 && "Unhandled function");
         if (lexer_current(l).kind != TK_CLOSEP) {
             fprintf(stderr, "Unmatching ) for function");
             return NULL;
@@ -372,7 +363,7 @@ void destroy()
 #ifdef PARSER_MAIN
 int main(void)
 {
-    char *src = "42 + 69";
+    char *src = "-cos(x) + y / 2";
 
     NodeTree *result = parse(src);
     if (!result) return 1;
