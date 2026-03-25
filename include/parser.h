@@ -8,10 +8,8 @@
 #include <math.h>
 #include <float.h>
 
-#define NODETREE_HEAD                   \
-    void (*free)(void *self);           \
-    float (*eval)(void *self, float x); \
-    char  *(*print)(void *self);        \
+#define NODETREE_HEAD \
+    VTable *vtable;   \
 
 #define ZERO (1e-8)
 
@@ -22,6 +20,12 @@
 //    NODE_ID,
 //    NODE_NUMBER
 //} NodeKind; 
+
+typedef struct {
+    char *(*print)(void *self);
+    float (*eval)(void *self, float x);
+    void (*free)(void *self);
+} VTable;
 
 typedef struct {
     NODETREE_HEAD
