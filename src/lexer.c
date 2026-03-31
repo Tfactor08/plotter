@@ -101,6 +101,11 @@ static void token_print_error(Token *tk)
     printf("Error: %s\n", tk->value.s);
 }
 
+static void token_print_eof(Token *tk)
+{
+    printf("EOF\n");
+}
+
 static Token token_create_int(int val)
 {
     Token tk = { .kind = TK_INT, .value.i = val, .print = &token_print_int };
@@ -141,6 +146,7 @@ static Token token_create_string(TokenKind kind, const char *val)
 static Token token_create_eof()
 {
     Token tk = { .kind = TK_EOF };
+    tk.print = &token_print_eof;
     return tk;
 }
 

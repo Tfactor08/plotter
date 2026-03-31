@@ -1,10 +1,16 @@
 /*
 E -> T {+|- T}
-T -> P {*|/ P}
+T -> P {*|/ P} | PP{P}
 P -> F {^ F}
 F -> Id | Number | (E) | -F | Func(E)
 Func: sin | cos | exp
 */
+
+// TODO:
+// Current grammar creates a problem: the T definition requires Number but so does the F term
+// and that creates an ambiguity (we hadn't had this situation before).
+// I don't really know how to solve this issue, but maybe that is why the look-ahead technique exists.
+// Btw, PNumber (and PId) kinda works.
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -21,6 +27,7 @@ Func: sin | cos | exp
 #define ZERO (1e-8)
 #define FLOAT_PRECISION "2"
 #define PRINT_BUFFER_CAP (1 << 8)
+#define ARRAY_LEN(arr) (sizeof(arr) / sizeof(arr[0]))
 
 #define MALLOC_CHECK(ptr)                                                                    \
     do {                                                                                     \
@@ -323,41 +330,69 @@ static NodeTree *expression(Lexer *l)
     NodeTree *a = term(l);
     if (!a) return NULL;
     while (true) {
-        if (lexer_current(l).kind == TK_PLUS) {
+        TokenKind tk_kind = lexer_current(l).kind;
+        if (tk_kind == TK_PLUS) {
             lexer_next(l);
             NodeTree *b = term(l);
             if (!b) return NULL;
-            a = (NodeTree *)node_add_create(a, b);
-        } else if (lexer_current(l).kind == TK_MINUS) {
+            a = (NodeTree *) node_add_create(a, b);
+        } else if (tk_kind == TK_MINUS) {
             lexer_next(l);
             NodeTree *b = term(l);
             if (!b) return NULL;
-            a = (NodeTree *)node_sub_create(a, b);
+            a = (NodeTree *) node_sub_create(a, b);
         } else {
             return a;
         }
     }
 }
 
+bool is_factor(Token token)
+{
+    TokenKind factor_tks[] = { TK_ID, TK_INT, TK_DEC, TK_OPENP, TK_FUNC };
+    for (int i = 0; i < ARRAY_LEN(factor_tks); i++)
+        if (token.kind == factor_tks[i])
+            return true;
+    return false;
+}
+
+// T -> P {*|/ P} | PP
 NodeTree *term(Lexer *l)
 {
     NodeTree *primary(Lexer *);
+    NodeTree *factor(Lexer *);
 
-    NodeTree *a = primary(l);
-    if (!a) return NULL;
-    while (true) {
-        if (lexer_current(l).kind == TK_MUL) {
-            lexer_next(l);
+    if (lexer_current(l).kind != TK_FUNC && is_factor(lexer_peek(l))) {
+        NodeTree *a = primary(l);
+        if (!a) return NULL;
+        do {
             NodeTree *b = primary(l);
             if (!b) return NULL;
-            a = (NodeTree *)node_mul_create(a, b);
-        } else if (lexer_current(l).kind == TK_DIV) {
-            lexer_next(l);
-            NodeTree *b = primary(l);
-            if (!b) return NULL;
-            a = (NodeTree *)node_div_create(a, b);
-        } else {
-            return a;
+            a = (NodeTree *) node_mul_create(a, b);
+        } while (is_factor(lexer_current(l)));
+        return a;
+    } else {
+        NodeTree *a = primary(l);
+        if (!a) return NULL;
+        while (true) {
+            TokenKind curr_tk_kind = lexer_current(l).kind;
+            if (curr_tk_kind == TK_MUL) {
+                lexer_next(l);
+                NodeTree *b = primary(l);
+                if (!b) return NULL;
+                a = (NodeTree *) node_mul_create(a, b);
+            } else if (curr_tk_kind == TK_DIV) {
+                lexer_next(l);
+                NodeTree *b = primary(l);
+                if (!b) return NULL;
+                a = (NodeTree *) node_div_create(a, b);
+            }// else if (curr_tk_kind == TK_ID || curr_tk_kind == TK_INT || curr_tk_kind == TK_DEC) {
+             //   NodeTree *b = primary(l);
+             //   if (!b) return NULL;
+             //   a = (NodeTree *) node_mul_create(a, b);
+            else {
+                return a;
+            }
         }
     }
 }
@@ -369,11 +404,12 @@ NodeTree *primary(Lexer *l)
     NodeTree *a = factor(l);
     if (!a) return NULL;
     while (true) {
-        if (lexer_current(l).kind == TK_POW) {
+        TokenKind tk_kind = lexer_current(l).kind;
+        if (tk_kind == TK_POW) {
             lexer_next(l);
             NodeTree *b = factor(l);
             if (!b) return NULL;
-            a = (NodeTree *)node_pow_create(a, b);
+            a = (NodeTree *) node_pow_create(a, b);
         } else {
             return a;
         }
@@ -386,17 +422,17 @@ NodeTree *factor(Lexer *l)
     if (curr_tk.kind == TK_INT || curr_tk.kind == TK_DEC) {
         lexer_next(l);
         if (curr_tk.kind == TK_INT)
-            return (NodeTree *)node_number_create(token_get_int(&curr_tk));
+            return (NodeTree *) node_number_create(token_get_int(&curr_tk));
         else if (curr_tk.kind == TK_DEC)
-            return (NodeTree *)node_number_create(token_get_dec(&curr_tk));
+            return (NodeTree *) node_number_create(token_get_dec(&curr_tk));
     } else if (curr_tk.kind == TK_ID) {
         lexer_next(l);
-        return (NodeTree *)node_id_create(token_get_string(&curr_tk));
+        return (NodeTree *) node_id_create(token_get_string(&curr_tk));
     } else if (curr_tk.kind == TK_MINUS) {
         lexer_next(l);
         NodeTree *f = factor(l);
         if (!f) return NULL;
-        return (NodeTree *)node_negate_create(f);
+        return (NodeTree *) node_negate_create(f);
     } else if (curr_tk.kind == TK_OPENP) {
         lexer_next(l);
         NodeTree *e = expression(l);
@@ -427,15 +463,17 @@ NodeTree *factor(Lexer *l)
             return NULL;
         }
         lexer_next(l);
-        return (NodeTree *)func;
+        return (NodeTree *) func;
     } else if (curr_tk.kind == TK_ERROR) {
         fprintf(stderr, "ERROR (lexer): %s\n", token_get_string(&curr_tk));
         return NULL;
     } else {
         fprintf(stderr, "ERROR (parser): unknown token\n");
+        // TODO: this is ugly
+        curr_tk.print(&curr_tk);
         return NULL;
     }
-    return NULL; // Unrechable but silences the warning
+    return NULL; // Unreachable but silences the warning
 }
 
 NodeTree *tree_parse(const char *src)
@@ -471,13 +509,15 @@ void tree_free(NodeTree *tree)
 #ifdef PARSER_MAIN
 int main(void)
 {
-    char *src = "1 + 2";
+    // 2x
+    // 10sin(x)
+    char *src = "2x^3x";
 
     NodeTree *result = tree_parse(src);
     if (!result) return 1;
 
     tree_print(result);
-    printf("%.2f\n", tree_eval(result, 0));
+    printf("%.2f\n", tree_eval(result, 1));
 
     tree_free(result);
 

@@ -6,6 +6,11 @@ CFLAGS=-Wall
 
 .PHONY: default parser plotter clean
 
+#ifeq ($(DEBUG),)
+#	echo fuck
+#	CFLAGS += -g
+#endif
+
 default: parser
 
 $(BUILD)/parser.o: $(SOURCE)/parser.c $(SOURCE)/lexer.c $(SOURCE)/arena.c $(SOURCE)/utils.c $(INCLUDE)/parser.h
