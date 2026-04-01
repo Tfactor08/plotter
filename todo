@@ -1,4 +1,5 @@
 -- support factors in front of variables and functions (e.g. 2x) ['factor' branch];
+-- enhance the testing functionality;
 -- `1-1` bug;
 -- handle division by zero (done?).
 

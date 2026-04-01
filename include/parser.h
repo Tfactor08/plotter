@@ -14,9 +14,9 @@ typedef struct {
     NODETREE_HEAD
 } NodeTree;
 
-NodeTree *parse(const char *src);
-char *print(NodeTree *tree);
-float eval(NodeTree *tree, float x);
-void destroy();
+NodeTree *tree_parse(const char *src);
+void tree_print(NodeTree *tree);
+float tree_eval(NodeTree *tree, float x);
+void tree_free(NodeTree *tree);
 
 #endif

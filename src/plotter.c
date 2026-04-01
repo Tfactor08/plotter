@@ -1,4 +1,6 @@
 #include <raylib.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <math.h>
 
@@ -23,8 +25,8 @@ int main(int argc, char **argv)
     }
 
     char expression[256];
-    strncpy(expression, argv[1], strlen(expression));
-    NodeTree *tree = parse(expression);
+    strncpy(expression, argv[1], sizeof(expression));
+    NodeTree *tree = tree_parse(expression);
 
     InitWindow(WIDTH, HEIGHT, "Plotter");
     SetTargetFPS(5);
@@ -46,7 +48,7 @@ int main(int argc, char **argv)
             fgets(expression, sizeof(expression), stdin);
             expression[strcspn(expression, "\n")] = '\0';
             printf("%s\n", expression);
-            tree = parse(expression);
+            tree = tree_parse(expression);
             ClearBackground(BLACK);
         }
 
@@ -60,7 +62,7 @@ int main(int argc, char **argv)
         }
 
         for (float x = -scale; x <= scale; x += 0.005) {
-            float y = eval(tree, x);
+            float y = tree_eval(tree, x);
             DrawPixelV(screen(x, y, scale), RED);
         }
 
