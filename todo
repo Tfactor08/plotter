@@ -1,6 +1,5 @@
 -- support factors in front of variables and functions (e.g. 2x) ['factor' branch];
 -- use static specifier for the parse functions (E, T, P, F) as well;
--- handle naming inconsistency in TokenKind and FUNC enums;
 -- add debugging option in Makefile;
 -- `1-1` bug;
 -- handle division by zero (done?).

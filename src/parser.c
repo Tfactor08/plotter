@@ -6,12 +6,6 @@ F -> Id | Number | (E) | -F | Func(E)
 Func: sin | cos | exp
 */
 
-// TODO:
-// Current grammar creates a problem: the T definition requires Number but so does the F term
-// and that creates an ambiguity (we hadn't had this situation before).
-// I don't really know how to solve this issue, but maybe that is why the look-ahead technique exists.
-// Btw, PNumber (and PId) kinda works.
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
@@ -29,12 +23,13 @@ Func: sin | cos | exp
 #define PRINT_BUFFER_CAP (1 << 8)
 #define ARRAY_LEN(arr) (sizeof(arr) / sizeof(arr[0]))
 
-#define MALLOC_CHECK(ptr)                                                                    \
-    do {                                                                                     \
-        if (!ptr) {                                                                          \
-            fprintf(stderr, "ERROR (parser): malloc failed at %s:%d\n", __FILE__, __LINE__); \
-            exit(EXIT_FAILURE);                                                              \
-        }                                                                                    \
+#define MALLOC_CHECK(ptr)                                               \
+    do {                                                                \
+        if (!ptr) {                                                     \
+            fprintf(stderr, "ERROR (parser): malloc failed at %s:%d\n", \
+                    __FILE__, __LINE__);                                \
+            exit(EXIT_FAILURE);                                         \
+        }                                                               \
     } while (0)
 
 typedef struct {
@@ -330,7 +325,7 @@ static NodeTree *expression(Lexer *l)
     NodeTree *a = term(l);
     if (!a) return NULL;
     while (true) {
-        TokenKind tk_kind = lexer_current(l).kind;
+        TOKEN_KIND tk_kind = lexer_current(l).kind;
         if (tk_kind == TK_PLUS) {
             lexer_next(l);
             NodeTree *b = term(l);
@@ -349,14 +344,14 @@ static NodeTree *expression(Lexer *l)
 
 bool is_factor(Token token)
 {
-    TokenKind factor_tks[] = { TK_ID, TK_INT, TK_DEC, TK_OPENP, TK_FUNC };
+    TOKEN_KIND factor_tks[] = { TK_ID, TK_INT, TK_DEC, TK_OPENP, TK_FUNC };
     for (int i = 0; i < ARRAY_LEN(factor_tks); i++)
         if (token.kind == factor_tks[i])
             return true;
     return false;
 }
 
-// T -> P {*|/ P} | PP
+// T -> P {*|/ P} | PP{P}
 NodeTree *term(Lexer *l)
 {
     NodeTree *primary(Lexer *);
@@ -375,7 +370,7 @@ NodeTree *term(Lexer *l)
         NodeTree *a = primary(l);
         if (!a) return NULL;
         while (true) {
-            TokenKind curr_tk_kind = lexer_current(l).kind;
+            TOKEN_KIND curr_tk_kind = lexer_current(l).kind;
             if (curr_tk_kind == TK_MUL) {
                 lexer_next(l);
                 NodeTree *b = primary(l);
@@ -386,11 +381,7 @@ NodeTree *term(Lexer *l)
                 NodeTree *b = primary(l);
                 if (!b) return NULL;
                 a = (NodeTree *) node_div_create(a, b);
-            }// else if (curr_tk_kind == TK_ID || curr_tk_kind == TK_INT || curr_tk_kind == TK_DEC) {
-             //   NodeTree *b = primary(l);
-             //   if (!b) return NULL;
-             //   a = (NodeTree *) node_mul_create(a, b);
-            else {
+            } else {
                 return a;
             }
         }
@@ -404,7 +395,7 @@ NodeTree *primary(Lexer *l)
     NodeTree *a = factor(l);
     if (!a) return NULL;
     while (true) {
-        TokenKind tk_kind = lexer_current(l).kind;
+        TOKEN_KIND tk_kind = lexer_current(l).kind;
         if (tk_kind == TK_POW) {
             lexer_next(l);
             NodeTree *b = factor(l);
@@ -509,9 +500,7 @@ void tree_free(NodeTree *tree)
 #ifdef PARSER_MAIN
 int main(void)
 {
-    // 2x
-    // 10sin(x)
-    char *src = "2x^3x";
+    char *src = "xexp(0)ysin(0)^2";
 
     NodeTree *result = tree_parse(src);
     if (!result) return 1;
