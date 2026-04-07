@@ -1,5 +1,7 @@
 -- support factors in front of variables and functions (e.g. 2x) ['factor' branch];
 -- enhance the testing functionality;
+-- use static specifier for the parse functions (E, T, P, F) as well;
+-- add debugging option in Makefile;
 -- `1-1` bug;
 -- handle division by zero (done?).
 
@@ -10,6 +12,7 @@ In Question:
 
 To be Mentioned in README:
 -- recursive descent parsing and grammar;
+-- ambiguity caused by intoducing implicit multiplication and how the Look-ahead solves it;
 -- polymorphic code in C: how and why it's useful;
 -- the decision (so far) to give up on using arena allocators;
 -- partial unity builds and Makefiles.
