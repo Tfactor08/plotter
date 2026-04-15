@@ -183,13 +183,13 @@ FUNC token_get_func(Token *tk)
 
 char *token_get_string(Token *tk)
 {
-    assert(tk->kind == TK_ID || tk->kind == TK_ERROR);
+    assert(tk->kind == TK_ERROR);
     return tk->value.s;
 }
 
 char token_get_literal(Token *tk)
 {
-    assert(tk->kind == TK_OPENP || tk->kind == TK_CLOSEP || tk->kind == TK_PLUS || tk->kind == TK_MINUS || tk->kind == TK_MUL || tk->kind == TK_DIV || tk->kind == TK_POW);
+    assert(tk->kind == TK_OPENP || tk->kind == TK_CLOSEP || tk->kind == TK_PLUS || tk->kind == TK_MINUS || tk->kind == TK_MUL || tk->kind == TK_DIV || tk->kind == TK_POW || tk->kind == TK_ID);
     return tk->value.c;
 }
 
@@ -289,11 +289,11 @@ Lexer lexer_create(const char *content)
 #if 0
 int main(void)
 {
-    char *source = "xsincos * cosexp - -.69 + d / 2^d?";
-    Lexer lexer = lexer_create(source);
+    char *expr = "xsincos * cosexp - -.69 + d / 2^d?";
+    Lexer lexer = lexer_create(expr);
     Token tk = {0};
 
-    printf("%s\n", source);
+    printf("%s\n", expr);
     do {
         tk = lexer_current(&lexer);
         if (tk.kind == TK_ERROR) {

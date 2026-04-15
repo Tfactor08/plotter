@@ -318,10 +318,11 @@ static NodeId *node_id_create(char *string)
     return node;
 }
 
+static NodeTree *term(Lexer *);
+
+// E -> T {+|- T}
 static NodeTree *expression(Lexer *l)
 {
-    NodeTree *term(Lexer *);
-
     NodeTree *a = term(l);
     if (!a) return NULL;
     while (true) {
@@ -342,20 +343,21 @@ static NodeTree *expression(Lexer *l)
     }
 }
 
-bool is_factor(Token token)
+static bool is_factor(Token token)
 {
     TOKEN_KIND factor_tks[] = { TK_ID, TK_INT, TK_DEC, TK_OPENP, TK_FUNC };
-    for (int i = 0; i < ARRAY_LEN(factor_tks); i++)
+    for (size_t i = 0; i < ARRAY_LEN(factor_tks); i++)
         if (token.kind == factor_tks[i])
             return true;
     return false;
 }
 
+static NodeTree *primary(Lexer *);
+static NodeTree *factor(Lexer *);
+
 // T -> P {*|/ P} | PP{P}
-NodeTree *term(Lexer *l)
+static NodeTree *term(Lexer *l)
 {
-    NodeTree *primary(Lexer *);
-    NodeTree *factor(Lexer *);
 
     if (lexer_current(l).kind != TK_FUNC && is_factor(lexer_peek(l))) {
         NodeTree *a = primary(l);
@@ -388,10 +390,11 @@ NodeTree *term(Lexer *l)
     }
 }
 
-NodeTree *primary(Lexer *l)
-{
-    NodeTree *factor(Lexer *);
+static NodeTree *factor(Lexer *);
 
+// P -> F {^ F}
+static NodeTree *primary(Lexer *l)
+{
     NodeTree *a = factor(l);
     if (!a) return NULL;
     while (true) {
@@ -407,7 +410,8 @@ NodeTree *primary(Lexer *l)
     }
 }
 
-NodeTree *factor(Lexer *l)
+// F -> Id | Number | (E) | -F | Func(E)
+static NodeTree *factor(Lexer *l)
 {
     Token curr_tk = lexer_current(l);
     if (curr_tk.kind == TK_INT || curr_tk.kind == TK_DEC) {
@@ -500,9 +504,9 @@ void tree_free(NodeTree *tree)
 #ifdef PARSER_MAIN
 int main(void)
 {
-    char *src = "xexp(0)ysin(0)^2";
+    char *expr = "xexp(0)ysin(0)^2";
 
-    NodeTree *result = tree_parse(src);
+    NodeTree *result = tree_parse(expr);
     if (!result) return 1;
 
     tree_print(result);

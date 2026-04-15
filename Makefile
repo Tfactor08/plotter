@@ -21,4 +21,4 @@ $(BUILD)/plotter: $(SOURCE)/plotter.c $(INCLUDE)/parser.h $(BUILD)/parser.o
 	$(CC) $(CFLAGS) -I./$(INCLUDE) $(SOURCE)/plotter.c $(BUILD)/parser.o -o $(BUILD)/plotter -lm -lraylib
 
 clean:
-	rm -f $(BUILD)/*
+	rm -rf $(BUILD)/*
