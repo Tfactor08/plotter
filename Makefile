@@ -8,7 +8,7 @@ CFLAGS=-Wall
 
 default: parser
 
-$(BUILD)/parser.o: $(SOURCE)/parser.c $(SOURCE)/lexer.c $(SOURCE)/arena.c $(SOURCE)/utils.c $(INCLUDE)/parser.h
+$(BUILD)/parser.o: $(SOURCE)/parser.c $(SOURCE)/lexer.c $(SOURCE)/utils.c $(INCLUDE)/parser.h
 	$(CC) $(CFLAGS) -I./$(INCLUDE) -c $(SOURCE)/parser.c -o $(BUILD)/parser.o $(FLAGS)
 
 parser: $(BUILD)/parser
