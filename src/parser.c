@@ -41,26 +41,26 @@ typedef struct {
 typedef struct {
     NODETREE_HEAD
     FUNC func;
-    NodeTree *argument;
+    NodeTree *arg;
 } NodeFunc;
 
 typedef struct {
     NODETREE_HEAD
-    NodeTree *argument;
+    NodeTree *arg;
 } NodeNegate;
 
 typedef struct {
     NODETREE_HEAD
-    char *string;
-} NodeId;
+    char var;
+} NodeVar;
 
 typedef struct {
     NODETREE_HEAD
     float value;
 } NodeNumber;
 
-#define NODE_BINARY_CREATE_FUNC(name)                                        \
-    static NodeBinary *node_##name##_create(NodeTree *left, NodeTree *right) \
+#define MAKE_NODE_BINARY_MAKE_FUNC(name)                                     \
+    static NodeBinary *node_##name##_make(NodeTree *left, NodeTree *right)   \
     {                                                                        \
         NodeBinary *node = malloc(sizeof(NodeBinary));                       \
         MALLOC_CHECK(node);                                                  \
@@ -70,7 +70,7 @@ typedef struct {
         return node;                                                         \
     }
 
-#define NODE_BINARY_EVAL_FUNC(name, operator)                        \
+#define MAKE_NODE_BINARY_EVAL_FUNC(name, operator)                   \
     static float node_##name##_eval(void *self, float x)             \
     {                                                                \
         NodeBinary *node = self;                                     \
@@ -79,7 +79,7 @@ typedef struct {
         return l->vtable->eval(l, x) operator r->vtable->eval(r, x); \
     }
 
-#define NODE_BINARY_PRINT_FUNC(name, operator)                            \
+#define MAKE_NODE_BINARY_PRINT_FUNC(name, operator)                       \
     static void node_##name##_print(void *self, char *buffer)             \
     {                                                                     \
         NodeBinary *node = self;                                          \
@@ -94,9 +94,9 @@ typedef struct {
 
 /* --- EVAL FUNCTIONS --- */
 
-NODE_BINARY_EVAL_FUNC(add, +);
-NODE_BINARY_EVAL_FUNC(sub, -);
-NODE_BINARY_EVAL_FUNC(mul, *);
+MAKE_NODE_BINARY_EVAL_FUNC(add, +);
+MAKE_NODE_BINARY_EVAL_FUNC(sub, -);
+MAKE_NODE_BINARY_EVAL_FUNC(mul, *);
 
 // node_div_eval is implemented separately from the common NODE_BINARY_EVAL
 // since it must be realized in a special way 
@@ -122,7 +122,7 @@ static float node_pow_eval(void *self, float x)
 static float node_func_eval(void *self, float x)
 {
     NodeFunc *node = self;
-    NodeTree *arg = node->argument;
+    NodeTree *arg = node->arg;
     FUNC func = node->func;
     if (func == SIN)
         return sin(arg->vtable->eval(arg, x));
@@ -137,7 +137,7 @@ static float node_func_eval(void *self, float x)
 static float node_negate_eval(void *self, float x)
 {
     NodeNegate *node = self;
-    NodeTree *arg = node->argument;
+    NodeTree *arg = node->arg;
     return -(arg->vtable->eval(arg, x));
 }
 
@@ -147,24 +147,24 @@ static float node_number_eval(void *self, float x)
     return node->value;
 }
 
-static float node_id_eval(void *self, float x)
+static float node_var_eval(void *self, float x)
 {
     return x;
 }
 
 /* --- PRINT FUNCTIONS --- */
 
-NODE_BINARY_PRINT_FUNC(add, +);
-NODE_BINARY_PRINT_FUNC(sub, -);
-NODE_BINARY_PRINT_FUNC(mul, *);
-NODE_BINARY_PRINT_FUNC(div, /);
-NODE_BINARY_PRINT_FUNC(pow, ^);
+MAKE_NODE_BINARY_PRINT_FUNC(add, +);
+MAKE_NODE_BINARY_PRINT_FUNC(sub, -);
+MAKE_NODE_BINARY_PRINT_FUNC(mul, *);
+MAKE_NODE_BINARY_PRINT_FUNC(div, /);
+MAKE_NODE_BINARY_PRINT_FUNC(pow, ^);
 
 static void node_func_print(void *self, char *buffer)
 {
     NodeFunc *node = self;
     char arg_buf[PRINT_BUFFER_CAP];
-    node->argument->vtable->print(node->argument, arg_buf);
+    node->arg->vtable->print(node->arg, arg_buf);
     char *func_str;
     switch (node->func) {
         case SIN:
@@ -188,7 +188,7 @@ static void node_negate_print(void *self, char *buffer)
 {
     NodeNegate *node = self;
     char arg_buf[PRINT_BUFFER_CAP];
-    node->argument->vtable->print(node->argument, arg_buf);
+    node->arg->vtable->print(node->arg, arg_buf);
     size_t buf_left_cap = PRINT_BUFFER_CAP - (strlen(buffer) + 1);
     assert(buf_left_cap >= strlen(arg_buf) + 4);
     sprintf(buffer, "-(%s)", arg_buf);
@@ -202,12 +202,12 @@ static void node_number_print(void *self, char *buffer)
     sprintf(buffer, "%." FLOAT_PRECISION "f", node->value);
 }
 
-static void node_id_print(void *self, char *buffer)
+static void node_var_print(void *self, char *buffer)
 {
-    NodeId *node = self;
+    NodeVar *node = self;
     size_t buf_left_cap = PRINT_BUFFER_CAP - (strlen(buffer) + 1);
-    assert(buf_left_cap >= strlen(node->string) + 1);
-    sprintf(buffer, "%s", node->string);
+    assert(buf_left_cap >= 1);
+    sprintf(buffer, "%c", node->var);
 }
 
 /* --- FREE FUNCTIONS --- */
@@ -223,21 +223,20 @@ static void node_binary_free(void *self)
 static void node_func_free(void *self)
 {
     NodeFunc *node = self;
-    node->argument->vtable->free(node->argument);
+    node->arg->vtable->free(node->arg);
     free(node);
 }
 
 static void node_negate_free(void *self)
 {
     NodeNegate *node = self;
-    node->argument->vtable->free(node->argument);
+    node->arg->vtable->free(node->arg);
     free(node);
 }
 
-static void node_id_free(void *self)
+static void node_var_free(void *self)
 {
-    NodeId *node = self;
-    free(node->string);
+    NodeVar *node = self;
     free(node);
 }
 
@@ -247,7 +246,9 @@ static void node_number_free(void *self)
     free(node);
 }
 
-#define NODE_VTABLE_STRUCT(node)           \
+/* --- VTABLES --- */
+
+#define MAKE_NODE_VTABLE_STRUCT(node)      \
     static VTable node_##node##_vtable = { \
         .print = node_##node##_print,      \
         .eval = node_##node##_eval,        \
@@ -255,52 +256,52 @@ static void node_number_free(void *self)
     };
 
 // Specific macro for the Binary node is needed since the free pointer differs
-#define NODE_BINARY_VTABLE_STRUCT(node)    \
-    static VTable node_##node##_vtable = { \
-        .print = node_##node##_print,      \
-        .eval = node_##node##_eval,        \
-        .free = node_binary_free           \
+#define MAKE_NODE_BINARY_VTABLE_STRUCT(node) \
+    static VTable node_##node##_vtable = {   \
+        .print = node_##node##_print,        \
+        .eval = node_##node##_eval,          \
+        .free = node_binary_free             \
     };
 
-NODE_BINARY_VTABLE_STRUCT(add);
-NODE_BINARY_VTABLE_STRUCT(sub);
-NODE_BINARY_VTABLE_STRUCT(mul);
-NODE_BINARY_VTABLE_STRUCT(div);
-NODE_BINARY_VTABLE_STRUCT(pow);
+MAKE_NODE_BINARY_VTABLE_STRUCT(add);
+MAKE_NODE_BINARY_VTABLE_STRUCT(sub);
+MAKE_NODE_BINARY_VTABLE_STRUCT(mul);
+MAKE_NODE_BINARY_VTABLE_STRUCT(div);
+MAKE_NODE_BINARY_VTABLE_STRUCT(pow);
 
-NODE_VTABLE_STRUCT(func);
-NODE_VTABLE_STRUCT(negate);
-NODE_VTABLE_STRUCT(id);
-NODE_VTABLE_STRUCT(number);
+MAKE_NODE_VTABLE_STRUCT(func);
+MAKE_NODE_VTABLE_STRUCT(negate);
+MAKE_NODE_VTABLE_STRUCT(var);
+MAKE_NODE_VTABLE_STRUCT(number);
 
-NODE_BINARY_CREATE_FUNC(add);
-NODE_BINARY_CREATE_FUNC(sub);
-NODE_BINARY_CREATE_FUNC(mul);
-NODE_BINARY_CREATE_FUNC(div);
-NODE_BINARY_CREATE_FUNC(pow);
+/* --- MAKE FUNCTIONS --- */
 
-/* --- CREATE FUNCTIONS --- */
+MAKE_NODE_BINARY_MAKE_FUNC(add);
+MAKE_NODE_BINARY_MAKE_FUNC(sub);
+MAKE_NODE_BINARY_MAKE_FUNC(mul);
+MAKE_NODE_BINARY_MAKE_FUNC(div);
+MAKE_NODE_BINARY_MAKE_FUNC(pow);
 
-static NodeFunc *node_func_create(NodeTree *arg, FUNC func)
+static NodeFunc *node_func_make(NodeTree *arg, FUNC func)
 {
     NodeFunc *node = malloc(sizeof(NodeFunc));
     MALLOC_CHECK(node);
     node->vtable = &node_func_vtable;
     node->func = func;
-    node->argument = arg;
+    node->arg = arg;
     return node;
 }
 
-static NodeNegate *node_negate_create(NodeTree *arg)
+static NodeNegate *node_negate_make(NodeTree *arg)
 {
     NodeNegate *node = malloc(sizeof(NodeNegate));
     MALLOC_CHECK(node);
     node->vtable = &node_negate_vtable;
-    node->argument = arg;
+    node->arg = arg;
     return node;
 }
 
-static NodeNumber *node_number_create(float val)
+static NodeNumber *node_number_make(float val)
 {
     NodeNumber *node = malloc(sizeof(NodeNumber));
     MALLOC_CHECK(node);
@@ -309,12 +310,12 @@ static NodeNumber *node_number_create(float val)
     return node;
 }
 
-static NodeId *node_id_create(char *string)
+static NodeVar *node_var_make(char var)
 {
-    NodeId *node = malloc(sizeof(NodeId));
+    NodeVar *node = malloc(sizeof(NodeVar));
     MALLOC_CHECK(node);
-    node->vtable = &node_id_vtable;
-    node->string = strdup(string);
+    node->vtable = &node_var_vtable;
+    node->var = var;
     return node;
 }
 
@@ -331,12 +332,12 @@ static NodeTree *expression(Lexer *l)
             lexer_next(l);
             NodeTree *b = term(l);
             if (!b) return NULL;
-            a = (NodeTree *) node_add_create(a, b);
+            a = (NodeTree *) node_add_make(a, b);
         } else if (tk_kind == TK_MINUS) {
             lexer_next(l);
             NodeTree *b = term(l);
             if (!b) return NULL;
-            a = (NodeTree *) node_sub_create(a, b);
+            a = (NodeTree *) node_sub_make(a, b);
         } else {
             return a;
         }
@@ -345,7 +346,9 @@ static NodeTree *expression(Lexer *l)
 
 static bool is_factor(Token token)
 {
-    TOKEN_KIND factor_tks[] = { TK_ID, TK_INT, TK_DEC, TK_OPENP, TK_FUNC };
+    static const TOKEN_KIND factor_tks[] = {
+        TK_VAR, TK_INT, TK_DEC, TK_OPENP, TK_FUNC
+    };
     for (size_t i = 0; i < ARRAY_LEN(factor_tks); i++)
         if (token.kind == factor_tks[i])
             return true;
@@ -358,14 +361,13 @@ static NodeTree *factor(Lexer *);
 // T -> P {*|/ P} | PP{P}
 static NodeTree *term(Lexer *l)
 {
-
     if (lexer_current(l).kind != TK_FUNC && is_factor(lexer_peek(l))) {
         NodeTree *a = primary(l);
         if (!a) return NULL;
         do {
             NodeTree *b = primary(l);
             if (!b) return NULL;
-            a = (NodeTree *) node_mul_create(a, b);
+            a = (NodeTree *) node_mul_make(a, b);
         } while (is_factor(lexer_current(l)));
         return a;
     } else {
@@ -377,12 +379,12 @@ static NodeTree *term(Lexer *l)
                 lexer_next(l);
                 NodeTree *b = primary(l);
                 if (!b) return NULL;
-                a = (NodeTree *) node_mul_create(a, b);
+                a = (NodeTree *) node_mul_make(a, b);
             } else if (curr_tk_kind == TK_DIV) {
                 lexer_next(l);
                 NodeTree *b = primary(l);
                 if (!b) return NULL;
-                a = (NodeTree *) node_div_create(a, b);
+                a = (NodeTree *) node_div_make(a, b);
             } else {
                 return a;
             }
@@ -403,7 +405,7 @@ static NodeTree *primary(Lexer *l)
             lexer_next(l);
             NodeTree *b = factor(l);
             if (!b) return NULL;
-            a = (NodeTree *) node_pow_create(a, b);
+            a = (NodeTree *) node_pow_make(a, b);
         } else {
             return a;
         }
@@ -417,17 +419,17 @@ static NodeTree *factor(Lexer *l)
     if (curr_tk.kind == TK_INT || curr_tk.kind == TK_DEC) {
         lexer_next(l);
         if (curr_tk.kind == TK_INT)
-            return (NodeTree *) node_number_create(token_get_int(&curr_tk));
+            return (NodeTree *) node_number_make(token_int_get(&curr_tk));
         else if (curr_tk.kind == TK_DEC)
-            return (NodeTree *) node_number_create(token_get_dec(&curr_tk));
-    } else if (curr_tk.kind == TK_ID) {
+            return (NodeTree *) node_number_make(token_dec_get(&curr_tk));
+    } else if (curr_tk.kind == TK_VAR) {
         lexer_next(l);
-        return (NodeTree *) node_id_create(token_get_string(&curr_tk));
+        return (NodeTree *) node_var_make(token_var_get(&curr_tk));
     } else if (curr_tk.kind == TK_MINUS) {
         lexer_next(l);
         NodeTree *f = factor(l);
         if (!f) return NULL;
-        return (NodeTree *) node_negate_create(f);
+        return (NodeTree *) node_negate_make(f);
     } else if (curr_tk.kind == TK_OPENP) {
         lexer_next(l);
         NodeTree *e = expression(l);
@@ -450,8 +452,8 @@ static NodeTree *factor(Lexer *l)
         lexer_next(l);
         NodeTree *e = expression(l);
         if (!e) return NULL;
-        FUNC func_kind = token_get_func(&func_tk);
-        func = node_func_create(e, func_kind);
+        FUNC func_kind = token_func_get(&func_tk);
+        func = node_func_make(e, func_kind);
         if (lexer_current(l).kind != TK_CLOSEP) {
             printf("%d\n", lexer_current(l).kind);
             fprintf(stderr, "ERROR (parser): unmatching ) for function\n");
@@ -460,12 +462,13 @@ static NodeTree *factor(Lexer *l)
         lexer_next(l);
         return (NodeTree *) func;
     } else if (curr_tk.kind == TK_ERROR) {
-        fprintf(stderr, "ERROR (lexer): %s\n", token_get_string(&curr_tk));
+        fprintf(stderr, "ERROR (lexer): %s\n", token_string_get(&curr_tk));
         return NULL;
     } else {
         fprintf(stderr, "ERROR (parser): unknown token\n");
         // TODO: this is ugly
-        curr_tk.print(&curr_tk);
+        char buf[64];
+        curr_tk.print(&curr_tk, buf);
         return NULL;
     }
     return NULL; // Unreachable but silences the warning

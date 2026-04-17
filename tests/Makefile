@@ -2,11 +2,15 @@ CC=gcc
 CFLAGS=-Wall
 BUILD=./build
 DECMOC_INCLUDE=../include
+DECMOC_SOURCE=../src
 DECMOC_BUILD=../build
 
-.PHONY: all clean 
+.PHONY: default clean 
 
-all: parser_test
+default: lexer_test
+
+lexer_test: lexer_test.c test.h $(DECMOC_SOURCE)/lexer.c
+	$(CC) $(CFLAGS) lexer_test.c -o $(BUILD)/lexer_test
 
 parser_test: parser_test.c test.h $(DECMOC_BUILD)/parser.o
 	$(CC) $(CFLAGS) -I$(DECMOC_INCLUDE) parser_test.c $(DECMOC_BUILD)/parser.o -lm -o $(BUILD)/parser_test

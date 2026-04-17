@@ -4,53 +4,73 @@
 #include <stdio.h>
 
 // TODO:
-// support multiple tests in one file (even possible?);
-// work on naming (use conventions).
+// Support multiple tests in one file (even possible?).
 
 #define RED   "\033[31m"
 #define GREEN "\033[32m"
 #define RESET "\033[0m"
 
-static void test_eq()
+static void test()
 {
-    #ifdef TESTS
-    #define TEST(f, T, e, ...)                          \
-    {                                                   \
-        T res = f(__VA_ARGS__);                         \
-        if (res != e) {                                 \
-            printf(RED "Test FAILED:\n");               \
-        } else {                                        \
-            printf(GREEN "Test PASSED:\n");             \
-        }                                               \
-        char *desc = #f "(" #__VA_ARGS__ ")" " == " #e; \
-        printf(RESET "%s\n", desc);                     \
-    }
+#ifdef TESTS
+    #if defined(COMPARE) && defined(PRINT)
+        #define TEST(f, T, e, ...)                         \
+        {                                                  \
+            T res = f(__VA_ARGS__);                        \
+            if (!COMPARE(e, res)) {                        \
+                printf(RED "Test FAILED:\n");              \
+            } else {                                       \
+                printf(GREEN "Test PASSED:\n");            \
+            }                                              \
+            char *desc = #f "(" #__VA_ARGS__ ")" " == \""; \
+            printf(RESET "%s", desc);                      \
+            PRINT(e);                                      \
+            printf("\"\n");                                \
+        }
+    #elif defined(COMPARE)
+        #define TEST(f, T, e, ...)                          \
+        {                                                   \
+            T res = f(__VA_ARGS__);                         \
+            if (!COMPARE(e, res)) {                         \
+                printf(RED "Test FAILED:\n");               \
+            } else {                                        \
+                printf(GREEN "Test PASSED:\n");             \
+            }                                               \
+            char *desc = #f "(" #__VA_ARGS__ ")" " == " #e; \
+            printf(RESET "%s\n", desc);                     \
+        }
+    #elif defined(PRINT)
+        #define TEST(f, T, e, ...)                         \
+        {                                                  \
+            T res = f(__VA_ARGS__);                        \
+            if (e != res) {                                \
+                printf(RED "Test FAILED:\n");              \
+            } else {                                       \
+                printf(GREEN "Test PASSED:\n");            \
+            }                                              \
+            char *desc = #f "(" #__VA_ARGS__ ")" " == \""; \
+            printf(RESET "%s", desc);                      \
+            PRINT(e);                                      \
+            printf("\"\n");                                \
+        }
+    #else
+        #define TEST(f, T, e, ...)                          \
+        {                                                   \
+            T res = f(__VA_ARGS__);                         \
+            if (res != e) {                                 \
+                printf(RED "Test FAILED:\n");               \
+            } else {                                        \
+                printf(GREEN "Test PASSED:\n");             \
+            }                                               \
+            char *desc = #f "(" #__VA_ARGS__ ")" " == " #e; \
+            printf(RESET "%s\n", desc);                     \
+        }
+    #endif // defined(COMPARE) && defined(PRINT)
 
     TESTS
 
     #undef TEST
-    #endif
-}
-
-static void test_eq_custom()
-{
-    #ifdef TESTS
-    #define TEST(f, T, e, eq, ...)                      \
-    {                                                   \
-        T res = f(__VA_ARGS__);                         \
-        if (!eq(e, res)) {                              \
-            printf(RED "Test FAILED:\n");               \
-        } else {                                        \
-            printf(GREEN "Test PASSED:\n");             \
-        }                                               \
-        char *desc = #f "(" #__VA_ARGS__ ")" " == " #e; \
-        printf(RESET "%s\n", desc);                     \
-    }
-
-    TESTS
-
-    #undef TEST
-    #endif
+#endif // TESTS
 }
 
 #endif // TEST_H

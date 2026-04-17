@@ -1,5 +1,5 @@
 /*
-Id:       char
+Var:      char
 Number:   {digit}+(.{digit}+)? | .{digit}+
 Function: sin | cos | exp
 */
@@ -9,6 +9,7 @@ Function: sin | cos | exp
 #include <string.h>
 #include <ctype.h>
 #include <assert.h>
+#include <stdbool.h>
 
 #define MAX_STRING_LEN 256
 
@@ -17,7 +18,7 @@ Function: sin | cos | exp
 #define EXP_STR "exp"
 
 typedef enum {
-    TK_ID = 1,
+    TK_VAR = 1,
     TK_INT,
     TK_DEC,
     TK_OPENP,
@@ -48,7 +49,7 @@ struct Token {
         char  c;
         char  s[MAX_STRING_LEN+1];
     } value;
-    void (*print)(Token *self);
+    void (*print)(Token *self, char *buf);
 };
 
 typedef struct {
@@ -69,127 +70,132 @@ static char char_to_token[] = {
     [')'] = TK_CLOSEP
 };
 
-static void token_print_int(Token *tk)
+static bool is_literal(TOKEN_KIND kind)
 {
-    printf("Int: %d\n", tk->value.i);
+    static const TOKEN_KIND literal_tks[] = {
+        TK_OPENP, TK_CLOSEP, TK_PLUS, TK_MINUS, TK_MUL, TK_DIV, TK_POW
+    };
+    static const size_t literal_tks_count = sizeof(literal_tks) / sizeof(literal_tks[0]);
+    for (size_t i = 0; i < literal_tks_count; i++) 
+        if (kind == literal_tks[i])
+            return true;
+    return false;
 }
 
-static void token_print_dec(Token *tk)
-{
-    printf("Dec: %.2f\n", tk->value.f);
-}
+#define MAKE_PRINT_FUNC(name, desc, format, field)         \
+    static void token_##name##_print(Token *tk, char *buf) \
+    {                                                      \
+        sprintf(buf, desc ": " format, tk->value.field);   \
+    }
 
-static void token_print_func(Token *tk)
+MAKE_PRINT_FUNC(int,     "Int",     "%d",   i);
+MAKE_PRINT_FUNC(dec,     "Dec",     "%.2f", f);
+MAKE_PRINT_FUNC(literal, "Literal", "%c",   c);
+MAKE_PRINT_FUNC(var,     "Var",     "%c",   c);
+MAKE_PRINT_FUNC(error,   "Error",   "%s",   s);
+
+static void token_func_print(Token *tk, char *buf)
 {
     switch (tk->value.i) {
         case SIN:
-            printf("Func: %s\n", SIN_STR);
+            sprintf(buf, "Func: %s", SIN_STR);
             break;
         case COS:
-            printf("Func: %s\n", COS_STR);
+            sprintf(buf, "Func: %s", COS_STR);
             break;
         case EXP:
-            printf("Func: %s\n", EXP_STR);
+            sprintf(buf, "Func: %s", EXP_STR);
             break;
         default:
             assert(0 && "Unhandled function\n");
     }
 }
 
-static void token_print_literal(Token *tk)
+static void token_eof_print(Token *tk, char *buf)
 {
-    printf("Literal: %c\n", tk->value.c);
+    sprintf(buf, "EOF");
 }
 
-static void token_print_id(Token *tk)
+static Token token_var_make(char val)
 {
-    printf("Id: %c\n", tk->value.c);
-}
-
-static void token_print_error(Token *tk)
-{
-    printf("Error: %s\n", tk->value.s);
-}
-
-static void token_print_eof(Token *tk)
-{
-    printf("EOF\n");
-}
-
-static Token token_create_id(char val)
-{
-    Token tk = { .kind = TK_ID, .value.c = val, .print = &token_print_id };
+    Token tk = { .kind = TK_VAR, .value.c = val, .print = &token_var_print };
     return tk;
 }
 
-static Token token_create_int(int val)
+static Token token_int_make(int val)
 {
-    Token tk = { .kind = TK_INT, .value.i = val, .print = &token_print_int };
+    Token tk = { .kind = TK_INT, .value.i = val, .print = &token_int_print };
     return tk;
 }
 
-static Token token_create_dec(float val)
+static Token token_dec_make(float val)
 {
-    Token tk = { .kind = TK_DEC, .value.f = val, .print = &token_print_dec };
+    Token tk = { .kind = TK_DEC, .value.f = val, .print = &token_dec_print };
     return tk;
 }
 
-static Token token_create_func(FUNC func)
+static Token token_func_make(FUNC func)
 {
-    Token tk = { .kind = TK_FUNC, .value.i = func, .print = &token_print_func };
+    Token tk = { .kind = TK_FUNC, .value.i = func, .print = &token_func_print };
     return tk;
 }
 
-static Token token_create_literal(TOKEN_KIND kind, char val)
+static Token token_literal_make(TOKEN_KIND kind, char val)
 {
-    assert(kind == TK_OPENP || kind == TK_CLOSEP || kind == TK_PLUS || kind == TK_MINUS || kind == TK_MUL || kind == TK_DIV || kind == TK_POW);
-    Token tk = { .kind = kind, .value.c = val, .print = &token_print_literal };
+    assert(is_literal(kind));
+    Token tk = { .kind = kind, .value.c = val, .print = &token_literal_print };
     return tk;
 }
 
-static Token token_create_eof()
+static Token token_eof_make()
 {
     Token tk = { .kind = TK_EOF };
-    tk.print = &token_print_eof;
+    tk.print = &token_eof_print;
     return tk;
 }
 
-static Token token_create_error(const char *msg)
+static Token token_error_make(const char *msg)
 {
     assert(strlen(msg) <= MAX_STRING_LEN);
     Token tk = { .kind = TK_ERROR };
-    tk.print = &token_print_error;
+    tk.print = &token_error_print;
     strcpy(tk.value.s, msg);
     return tk;
 }
 
-int token_get_int(Token *tk)
+int token_int_get(Token *tk)
 {
     assert(tk->kind == TK_INT || tk->kind == TK_FUNC);
     return tk->value.i;
 }
 
-float token_get_dec(Token *tk)
+float token_dec_get(Token *tk)
 {
     assert(tk->kind == TK_DEC);
     return tk->value.f;
 }
 
-FUNC token_get_func(Token *tk)
+FUNC token_func_get(Token *tk)
 {
     assert(tk->kind == TK_FUNC);
     return tk->value.i;
 }
 
-char *token_get_string(Token *tk)
+char *token_string_get(Token *tk)
 {
     assert(tk->kind == TK_ERROR);
     return tk->value.s;
 }
 
-char token_get_literal(Token *tk)
+char token_literal_get(Token *tk)
 {
-    assert(tk->kind == TK_OPENP || tk->kind == TK_CLOSEP || tk->kind == TK_PLUS || tk->kind == TK_MINUS || tk->kind == TK_MUL || tk->kind == TK_DIV || tk->kind == TK_POW || tk->kind == TK_ID);
+    assert(is_literal(tk->kind));
+    return tk->value.c;
+}
+
+char token_var_get(Token *tk)
+{
+    assert(tk->kind == TK_VAR);
     return tk->value.c;
 }
 
@@ -198,7 +204,7 @@ static Token token_next(Lexer *l)
     while (l->pos < l->count && isspace(l->content[l->pos]))
         l->pos += 1;
     if (l->pos >= l->count)
-        return token_create_eof();
+        return token_eof_make();
     char c = l->content[l->pos];
     char next = '\0';
     if (l->pos+1 < l->count)
@@ -220,7 +226,7 @@ static Token token_next(Lexer *l)
         if (num_len > MAX_STRING_LEN) {
             char error_msg[MAX_STRING_LEN+1];
             snprintf("max number length is %d\n", MAX_STRING_LEN+1, error_msg, MAX_STRING_LEN);
-            return token_create_error(error_msg);
+            return token_error_make(error_msg);
         }
         const char *num_start = l->content + start;
         char num_str[MAX_STRING_LEN+1];
@@ -228,33 +234,33 @@ static Token token_next(Lexer *l)
         num_str[num_len] = '\0';
         if (!is_float) {
             int num = atoi(num_str);
-            return token_create_int(num);
+            return token_int_make(num);
         } else {
             float num = atof(num_str);
-            return token_create_dec(num);
+            return token_dec_make(num);
         }
     } else if (isalpha(l->content[l->pos])) {
         const char *str_ptr = l->content + l->pos;
         if (strncmp(str_ptr, SIN_STR, strlen(SIN_STR)) == 0) {
             l->pos += strlen(SIN_STR);
-            return token_create_func(SIN);
+            return token_func_make(SIN);
         } else if (strncmp(str_ptr, COS_STR, strlen(COS_STR)) == 0) {
             l->pos += strlen(COS_STR);
-            return token_create_func(COS);
+            return token_func_make(COS);
         } else if (strncmp(str_ptr, EXP_STR, strlen(EXP_STR)) == 0) {
             l->pos += strlen(EXP_STR);
-            return token_create_func(EXP);
+            return token_func_make(EXP);
         } else {
             l->pos += 1;
-            return token_create_id(*str_ptr);
+            return token_var_make(*str_ptr);
         }
     } else if (c == '+' || c == '-' || c == '*' || c == '/' || c == '^' || c == '(' || c == ')') {
         l->pos += 1;
-        return token_create_literal(char_to_token[(int) c], c);
+        return token_literal_make(char_to_token[(int) c], c);
     } else {
         char error_msg[MAX_STRING_LEN+1];
         snprintf(error_msg, MAX_STRING_LEN+1, "unexpected symbol %c at %zu\n", c, l->pos);
-        return token_create_error(error_msg);
+        return token_error_make(error_msg);
     }
 }
 
@@ -292,15 +298,17 @@ int main(void)
     char *expr = "xsincos * cosexp - -.69 + d / 2^d?";
     Lexer lexer = lexer_create(expr);
     Token tk = {0};
+    char buf[64];
 
     printf("%s\n", expr);
     do {
         tk = lexer_current(&lexer);
         if (tk.kind == TK_ERROR) {
-            fprintf(stderr, "ERROR (LEXER): %s\n", token_get_string(&tk));
+            fprintf(stderr, "ERROR (LEXER): %s\n", token_string_get(&tk));
             return 1;
         }
-        tk.print(&tk);
+        tk.print(&tk, buf);
+        printf("%s\n", buf);
     } while ((tk = lexer_next(&lexer)).kind != TK_EOF);
 }
 #endif

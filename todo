@@ -1,13 +1,11 @@
--- enhance the testing functionality:
--- add tests for the lexer;
 -- add debugging option in Makefile;
--- `1-1` bug;
+-- fix `1-1` bug;
 -- handle division by zero (done?).
 
 In Question:
 -- support removing allocated objects in arena.c ['arena' branch];
 -- handle errors in arena.c;
--- get rid from arena?.
+-- get rid from arena?
 
 To be Mentioned in README:
 -- recursive descent parsing and grammar;
