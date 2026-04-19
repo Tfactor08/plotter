@@ -199,17 +199,24 @@ char token_var_get(Token *tk)
     return tk->value.c;
 }
 
+#define RETURN_TOKEN(make, ...)  \
+    prev_tk = make(__VA_ARGS__); \
+    return prev_tk;
+
 static Token token_next(Lexer *l)
 {
     while (l->pos < l->count && isspace(l->content[l->pos]))
         l->pos += 1;
     if (l->pos >= l->count)
         return token_eof_make();
+
+    static Token prev_tk;
     char c = l->content[l->pos];
-    char next = '\0';
+    char next_char = '\0';
+
     if (l->pos+1 < l->count)
-        next = l->content[l->pos + 1];
-    if (isdigit(c) || (c == '-' && (isdigit(next) || next == '.')) || (c == '.' && isdigit(next))) {
+        next_char = l->content[l->pos + 1];
+    if (isdigit(c) || (c == '-' && (prev_tk.kind != TK_INT && prev_tk.kind != TK_DEC) && (isdigit(next_char) || next_char == '.')) || (c == '.' && isdigit(next_char))) {
         size_t start = l->pos;
         int is_float = 0;
         if (c == '-')
@@ -226,7 +233,7 @@ static Token token_next(Lexer *l)
         if (num_len > MAX_STRING_LEN) {
             char error_msg[MAX_STRING_LEN+1];
             snprintf("max number length is %d\n", MAX_STRING_LEN+1, error_msg, MAX_STRING_LEN);
-            return token_error_make(error_msg);
+            RETURN_TOKEN(token_error_make, error_msg);
         }
         const char *num_start = l->content + start;
         char num_str[MAX_STRING_LEN+1];
@@ -234,33 +241,33 @@ static Token token_next(Lexer *l)
         num_str[num_len] = '\0';
         if (!is_float) {
             int num = atoi(num_str);
-            return token_int_make(num);
+            RETURN_TOKEN(token_int_make, num);
         } else {
             float num = atof(num_str);
-            return token_dec_make(num);
+            RETURN_TOKEN(token_dec_make, num);
         }
     } else if (isalpha(l->content[l->pos])) {
         const char *str_ptr = l->content + l->pos;
         if (strncmp(str_ptr, SIN_STR, strlen(SIN_STR)) == 0) {
             l->pos += strlen(SIN_STR);
-            return token_func_make(SIN);
+            RETURN_TOKEN(token_func_make, SIN);
         } else if (strncmp(str_ptr, COS_STR, strlen(COS_STR)) == 0) {
             l->pos += strlen(COS_STR);
-            return token_func_make(COS);
+            RETURN_TOKEN(token_func_make, COS);
         } else if (strncmp(str_ptr, EXP_STR, strlen(EXP_STR)) == 0) {
             l->pos += strlen(EXP_STR);
-            return token_func_make(EXP);
+            RETURN_TOKEN(token_func_make, EXP);
         } else {
             l->pos += 1;
-            return token_var_make(*str_ptr);
+            RETURN_TOKEN(token_var_make, *str_ptr);
         }
     } else if (c == '+' || c == '-' || c == '*' || c == '/' || c == '^' || c == '(' || c == ')') {
         l->pos += 1;
-        return token_literal_make(char_to_token[(int) c], c);
+        RETURN_TOKEN(token_literal_make, char_to_token[(int) c], c);
     } else {
         char error_msg[MAX_STRING_LEN+1];
         snprintf(error_msg, MAX_STRING_LEN+1, "unexpected symbol %c at %zu\n", c, l->pos);
-        return token_error_make(error_msg);
+        RETURN_TOKEN(token_error_make, error_msg);
     }
 }
 
@@ -292,10 +299,10 @@ Lexer lexer_create(const char *content)
     return l;
 }
 
-#if 0
+#if 1
 int main(void)
 {
-    char *expr = "xsincos * cosexp - -.69 + d / 2^d?";
+    char *expr = "1-1 + xsincos * cosexp - -.69 + d / 2^d?";
     Lexer lexer = lexer_create(expr);
     Token tk = {0};
     char buf[64];

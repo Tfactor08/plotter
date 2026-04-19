@@ -1,5 +1,6 @@
 -- add debugging option in Makefile;
 -- fix `1-1` bug;
+-- fix `cos(x)sin(x)` bug;
 -- handle division by zero (done?).
 
 In Question:
