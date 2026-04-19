@@ -299,7 +299,7 @@ Lexer lexer_create(const char *content)
     return l;
 }
 
-#if 1
+#if 0
 int main(void)
 {
     char *expr = "1-1 + xsincos * cosexp - -.69 + d / 2^d?";

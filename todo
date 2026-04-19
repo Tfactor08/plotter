@@ -1,16 +1,11 @@
 -- add debugging option in Makefile;
--- fix `1-1` bug;
--- fix `cos(x)sin(x)` bug;
+-- bug in test Makefile: changing parser.c doesn't force the tests rebuild;
+-- think over a better solution for building certain files as executables (do research);
 -- handle division by zero (done?).
-
-In Question:
--- support removing allocated objects in arena.c ['arena' branch];
--- handle errors in arena.c;
--- get rid from arena?
 
 To be Mentioned in README:
 -- recursive descent parsing and grammar;
--- ambiguity caused by intoducing implicit multiplication and how the Look-ahead solves it;
 -- polymorphic code in C: how and why it's useful;
 -- the decision (so far) to give up on using arena allocators;
--- partial unity builds and Makefiles.
+-- partial unity builds and Makefiles;
+-- X-macros in tests.

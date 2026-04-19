@@ -361,9 +361,10 @@ static NodeTree *factor(Lexer *);
 // T -> P {*|/ P} | PP{P}
 static NodeTree *term(Lexer *l)
 {
-    if (lexer_current(l).kind != TK_FUNC && is_factor(lexer_peek(l))) {
-        NodeTree *a = primary(l);
-        if (!a) return NULL;
+    NodeTree *a = primary(l);
+    if (!a) return NULL;
+    Token curr_tk = lexer_current(l);
+    if (is_factor(curr_tk)) {
         do {
             NodeTree *b = primary(l);
             if (!b) return NULL;
@@ -371,16 +372,14 @@ static NodeTree *term(Lexer *l)
         } while (is_factor(lexer_current(l)));
         return a;
     } else {
-        NodeTree *a = primary(l);
-        if (!a) return NULL;
         while (true) {
-            TOKEN_KIND curr_tk_kind = lexer_current(l).kind;
-            if (curr_tk_kind == TK_MUL) {
+            curr_tk = lexer_current(l);
+            if (curr_tk.kind == TK_MUL) {
                 lexer_next(l);
                 NodeTree *b = primary(l);
                 if (!b) return NULL;
                 a = (NodeTree *) node_mul_make(a, b);
-            } else if (curr_tk_kind == TK_DIV) {
+            } else if (curr_tk.kind == TK_DIV) {
                 lexer_next(l);
                 NodeTree *b = primary(l);
                 if (!b) return NULL;
@@ -455,7 +454,6 @@ static NodeTree *factor(Lexer *l)
         FUNC func_kind = token_func_get(&func_tk);
         func = node_func_make(e, func_kind);
         if (lexer_current(l).kind != TK_CLOSEP) {
-            printf("%d\n", lexer_current(l).kind);
             fprintf(stderr, "ERROR (parser): unmatching ) for function\n");
             return NULL;
         }
@@ -465,10 +463,11 @@ static NodeTree *factor(Lexer *l)
         fprintf(stderr, "ERROR (lexer): %s\n", token_string_get(&curr_tk));
         return NULL;
     } else {
-        fprintf(stderr, "ERROR (parser): unknown token\n");
+        fprintf(stderr, "ERROR (parser): unexpected token:\n");
         // TODO: this is ugly
         char buf[64];
         curr_tk.print(&curr_tk, buf);
+        printf("%s\n", buf);
         return NULL;
     }
     return NULL; // Unreachable but silences the warning
@@ -507,7 +506,7 @@ void tree_free(NodeTree *tree)
 #ifdef PARSER_MAIN
 int main(void)
 {
-    char *expr = "xexp(0)ysin(0)^2";
+    char *expr = "2cos(0)";
 
     NodeTree *result = tree_parse(expr);
     if (!result) return 1;
