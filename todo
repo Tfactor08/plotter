@@ -1,6 +1,4 @@
 -- add debugging option in Makefile;
--- bug in test Makefile: changing parser.c doesn't force the tests rebuild;
--- think over a better solution for building certain files as executables (do research);
 -- handle division by zero (done?).
 
 To be Mentioned in README:

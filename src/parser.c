@@ -1,7 +1,7 @@
 /*
-E -> T {+|- T}
-T -> P {*|/ P} | PP{P}
-P -> F {^ F}
+E -> T{+|- T}
+T -> P{*|/ P} | PP{P}
+P -> F{^ F}
 F -> Id | Number | (E) | -F | Func(E)
 Func: sin | cos | exp
 */
@@ -358,7 +358,7 @@ static bool is_factor(Token token)
 static NodeTree *primary(Lexer *);
 static NodeTree *factor(Lexer *);
 
-// T -> P {*|/ P} | PP{P}
+// T -> P{*|/ P} | PP{P}
 static NodeTree *term(Lexer *l)
 {
     NodeTree *a = primary(l);
