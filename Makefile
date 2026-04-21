@@ -4,6 +4,10 @@ INCLUDE=./include
 SOURCE=./src
 CFLAGS=-Wall
 
+ifdef D
+	CFLAGS += -g
+endif
+
 .PHONY: default all parser plotter clean
 
 default: parser
