@@ -35,9 +35,8 @@ static bool compare_tks(Token *a, Token *b)
 #define PRINT(token) print_tk(&token)
 static void print_tk(Token *token)
 {
-    static char buf[64];
-    token->print(token, buf);
-    printf("%s", buf);
+    LexPrintBuffer tk_buf = token->print(token);
+    printf("%s", tk_buf.str);
 }
 
 #define TESTS \

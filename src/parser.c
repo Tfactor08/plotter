@@ -473,11 +473,8 @@ static NodeTree *factor(Lexer *l)
         fprintf(stderr, "ERROR (lexer): %s\n", token_string_get(&curr_tk));
         return NULL;
     } else {
-        fprintf(stderr, "ERROR (parser): unexpected token:\n");
-        // TODO: this is ugly
-        char buf[64];
-        curr_tk.print(&curr_tk, buf);
-        printf("%s\n", buf);
+        LexPrintBuffer tk_buf = curr_tk.print(&curr_tk);
+        fprintf(stderr, "ERROR (parser): unexpected token: %s\n", tk_buf.str);
         return NULL;
     }
     return NULL; // Unreachable but silences the warning

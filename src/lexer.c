@@ -12,6 +12,7 @@ Function: sin | cos | exp
 #include <stdbool.h>
 
 #define MAX_STRING_LEN 256
+#define PRINT_BUFFER_CAP (1 << 8)
 
 #define SIN_STR "sin"
 #define COS_STR "cos"
@@ -39,6 +40,10 @@ typedef enum {
     EXP
 } FUNC; 
 
+typedef struct {
+    char str[PRINT_BUFFER_CAP];
+} LexPrintBuffer;
+
 typedef struct Token Token;
 
 struct Token {
@@ -49,7 +54,7 @@ struct Token {
         char  c;
         char  s[MAX_STRING_LEN+1];
     } value;
-    void (*print)(Token *self, char *buf);
+    LexPrintBuffer (*print)(Token *self);
 };
 
 typedef struct {
@@ -82,10 +87,16 @@ static bool is_literal(TOKEN_KIND kind)
     return false;
 }
 
-#define MAKE_PRINT_FUNC(name, desc, format, field)         \
-    static void token_##name##_print(Token *tk, char *buf) \
-    {                                                      \
-        sprintf(buf, desc ": " format, tk->value.field);   \
+/* --- PRINT FUNCTIONS --- */
+
+#define MAKE_PRINT_FUNC(name, desc, format, field)            \
+    static LexPrintBuffer token_##name##_print(Token *tk)     \
+    {                                                         \
+        LexPrintBuffer buf = {0};                             \
+        snprintf(buf.str, PRINT_BUFFER_CAP, desc ": " format, \
+                 tk->value.field) < 0 ?                       \
+                 exit(EXIT_FAILURE) : (void) 0;               \
+        return buf;                                           \
     }
 
 MAKE_PRINT_FUNC(int,     "Int",     "%d",   i);
@@ -94,27 +105,33 @@ MAKE_PRINT_FUNC(literal, "Literal", "%c",   c);
 MAKE_PRINT_FUNC(var,     "Var",     "%c",   c);
 MAKE_PRINT_FUNC(error,   "Error",   "%s",   s);
 
-static void token_func_print(Token *tk, char *buf)
+static LexPrintBuffer token_func_print(Token *tk)
 {
+    LexPrintBuffer buf = {0};
     switch (tk->value.i) {
         case SIN:
-            sprintf(buf, "Func: %s", SIN_STR);
+            snprintf(buf.str, PRINT_BUFFER_CAP, "Func: %s", SIN_STR);
             break;
         case COS:
-            sprintf(buf, "Func: %s", COS_STR);
+            snprintf(buf.str, PRINT_BUFFER_CAP, "Func: %s", COS_STR);
             break;
         case EXP:
-            sprintf(buf, "Func: %s", EXP_STR);
+            snprintf(buf.str, PRINT_BUFFER_CAP, "Func: %s", EXP_STR);
             break;
         default:
             assert(0 && "Unhandled function\n");
     }
+    return buf;
 }
 
-static void token_eof_print(Token *tk, char *buf)
+static LexPrintBuffer token_eof_print(Token *tk)
 {
-    sprintf(buf, "EOF");
+    LexPrintBuffer buf = {0};
+    snprintf(buf.str, PRINT_BUFFER_CAP, "EOF");
+    return buf;
 }
+
+/* --- MAKE FUNCTIONS --- */
 
 static Token token_var_make(char val)
 {
@@ -162,6 +179,8 @@ static Token token_error_make(const char *msg)
     strcpy(tk.value.s, msg);
     return tk;
 }
+
+/* --- GET FUNCTIONS --- */
 
 int token_int_get(Token *tk)
 {
@@ -305,7 +324,6 @@ int main(void)
     char *expr = "1-1 + xsincos * cosexp - -.69 + d / 2^d?";
     Lexer lexer = lexer_create(expr);
     Token tk = {0};
-    char buf[64];
 
     printf("%s\n", expr);
     do {
@@ -314,8 +332,8 @@ int main(void)
             fprintf(stderr, "ERROR (LEXER): %s\n", token_string_get(&tk));
             return 1;
         }
-        tk.print(&tk, buf);
-        printf("%s\n", buf);
+        LexPrintBuffer res = tk.print(&tk);
+        printf("%s\n", res.str);
     } while ((tk = lexer_next(&lexer)).kind != TK_EOF);
 }
 #endif
