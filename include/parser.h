@@ -1,11 +1,17 @@
 #ifndef PARSER_H
 #define PARSER_H
 
+#define PRINT_BUFFER_CAP (1 << 8)
+
 #define NODETREE_HEAD \
     VTable *vtable;   \
 
 typedef struct {
-    void (*print)(void *self, char *buffer);
+    char str[PRINT_BUFFER_CAP];
+} PrintBuffer;
+
+typedef struct {
+    PrintBuffer (*print)(void *self);
     float (*eval)(void *self, float x);
     void (*free)(void *self);
 } VTable;

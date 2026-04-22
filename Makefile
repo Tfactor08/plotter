@@ -2,6 +2,7 @@ CC=gcc
 BUILD=./build
 INCLUDE=./include
 SOURCE=./src
+#CFLAGS=-Wall -Wformat-overflow=0
 CFLAGS=-Wall
 
 ifdef D

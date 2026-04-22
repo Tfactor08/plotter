@@ -20,7 +20,6 @@ Func: sin | cos | exp
 
 #define ZERO (1e-8)
 #define FLOAT_PRECISION "2"
-#define PRINT_BUFFER_CAP (1 << 8)
 #define ARRAY_LEN(arr) (sizeof(arr) / sizeof(arr[0]))
 
 #define MALLOC_CHECK(ptr)                                               \
@@ -79,17 +78,19 @@ typedef struct {
         return l->vtable->eval(l, x) operator r->vtable->eval(r, x); \
     }
 
-#define MAKE_NODE_BINARY_PRINT_FUNC(name, operator)                       \
-    static void node_##name##_print(void *self, char *buffer)             \
-    {                                                                     \
-        NodeBinary *node = self;                                          \
-        char left_buf[PRINT_BUFFER_CAP] = {0};                            \
-        node->left->vtable->print(node->left, left_buf);                  \
-        char right_buf[PRINT_BUFFER_CAP] = {0};                           \
-        node->right->vtable->print(node->right, right_buf);               \
-        size_t buf_left_cap = PRINT_BUFFER_CAP - (strlen(buffer) + 1);    \
-        assert(buf_left_cap >= strlen(left_buf) + strlen(right_buf) + 5); \
-        sprintf(buffer, "(%s " #operator " %s)", left_buf, right_buf);    \
+#define MAKE_NODE_BINARY_PRINT_FUNC(name, operator)                      \
+    static PrintBuffer node_##name##_print(void *self)                   \
+    {                                                                    \
+        NodeBinary *node = self;                                         \
+        PrintBuffer buf = {0};                                           \
+        PrintBuffer left_buf = node->left->vtable->print(node->left);    \
+        PrintBuffer right_buf = node->right->vtable->print(node->right); \
+        int str_len = strlen(left_buf.str) + strlen(right_buf.str) + 6;  \
+        assert(PRINT_BUFFER_CAP >= str_len);                             \
+        snprintf(buf.str, PRINT_BUFFER_CAP, "(%s " #operator " %s)",     \
+                 left_buf.str, right_buf.str) < 1 ?                      \
+                 exit(EXIT_FAILURE) : (void) 1;                          \
+        return buf;                                                      \
     }
 
 /* --- EVAL FUNCTIONS --- */
@@ -160,11 +161,11 @@ MAKE_NODE_BINARY_PRINT_FUNC(mul, *);
 MAKE_NODE_BINARY_PRINT_FUNC(div, /);
 MAKE_NODE_BINARY_PRINT_FUNC(pow, ^);
 
-static void node_func_print(void *self, char *buffer)
+static PrintBuffer node_func_print(void *self)
 {
     NodeFunc *node = self;
-    char arg_buf[PRINT_BUFFER_CAP];
-    node->arg->vtable->print(node->arg, arg_buf);
+    PrintBuffer buf = {0};
+    PrintBuffer arg_buf = node->arg->vtable->print(node->arg);
     char *func_str;
     switch (node->func) {
         case SIN:
@@ -179,35 +180,44 @@ static void node_func_print(void *self, char *buffer)
         default:
             assert(0 && "Unhandled function");
     }
-    size_t buf_left_cap = PRINT_BUFFER_CAP - (strlen(buffer) + 1);
-    assert(buf_left_cap >= strlen(func_str) + strlen(arg_buf) + 5);
-    sprintf(buffer, "(%s(%s))", func_str, arg_buf);
+    int str_len = strlen(func_str) + strlen(arg_buf.str) + 5;
+    assert(PRINT_BUFFER_CAP >= str_len);
+    snprintf(buf.str, PRINT_BUFFER_CAP, "(%s(%s))",
+             func_str, arg_buf.str) < 0 ?
+             exit(EXIT_FAILURE) : (void) 0;
+    return buf;
 }
 
-static void node_negate_print(void *self, char *buffer)
+static PrintBuffer node_negate_print(void *self)
 {
     NodeNegate *node = self;
-    char arg_buf[PRINT_BUFFER_CAP];
-    node->arg->vtable->print(node->arg, arg_buf);
-    size_t buf_left_cap = PRINT_BUFFER_CAP - (strlen(buffer) + 1);
-    assert(buf_left_cap >= strlen(arg_buf) + 4);
-    sprintf(buffer, "-(%s)", arg_buf);
+    PrintBuffer buf = {0};
+    PrintBuffer arg_buf = node->arg->vtable->print(node->arg);
+    int str_len = strlen(arg_buf.str) + 4;
+    assert(PRINT_BUFFER_CAP >= str_len);
+    snprintf(buf.str, PRINT_BUFFER_CAP, "-(%s)", arg_buf.str) < 0 ?
+             exit(EXIT_FAILURE) : (void) 0;
+    return buf;
 }
 
-static void node_number_print(void *self, char *buffer)
+static PrintBuffer node_number_print(void *self)
 {
     NodeNumber *node = self;
-    size_t buf_left_cap = PRINT_BUFFER_CAP - (strlen(buffer) + 1);
-    assert(buf_left_cap >= int_len((int) node->value) + atoi(FLOAT_PRECISION) + 1);
-    sprintf(buffer, "%." FLOAT_PRECISION "f", node->value);
+    PrintBuffer buf = {0};
+    int str_len = int_len((int) node->value) + atoi(FLOAT_PRECISION) + 1;
+    assert(PRINT_BUFFER_CAP >= str_len);
+    snprintf(buf.str, PRINT_BUFFER_CAP, "%." FLOAT_PRECISION "f", node->value);
+    return buf;
 }
 
-static void node_var_print(void *self, char *buffer)
+static PrintBuffer node_var_print(void *self)
 {
     NodeVar *node = self;
-    size_t buf_left_cap = PRINT_BUFFER_CAP - (strlen(buffer) + 1);
-    assert(buf_left_cap >= 1);
-    sprintf(buffer, "%c", node->var);
+    PrintBuffer buf = {0};
+    int str_len = 1;
+    assert(PRINT_BUFFER_CAP >= str_len);
+    snprintf(buf.str, PRINT_BUFFER_CAP, "%c", node->var);
+    return buf;
 }
 
 /* --- FREE FUNCTIONS --- */
@@ -488,9 +498,8 @@ NodeTree *tree_parse(const char *src)
 
 void tree_print(NodeTree *tree)
 {
-    char buffer[PRINT_BUFFER_CAP] = {0};
-    tree->vtable->print(tree, buffer);
-    printf("%s\n", buffer);
+    PrintBuffer res = tree->vtable->print(tree);
+    printf("%s\n", res.str);
 }
 
 float tree_eval(NodeTree *tree, float x)

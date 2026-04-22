@@ -1,3 +1,4 @@
+-- handle 'format-overflow' warning;
 -- handle division by zero (done?).
 
 To be Mentioned in README:
