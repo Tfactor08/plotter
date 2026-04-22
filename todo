@@ -1,4 +1,4 @@
--- handle 'format-overflow' warning;
+-- determine requirements for the plotter;
 -- handle division by zero (done?).
 
 To be Mentioned in README:

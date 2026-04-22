@@ -6,8 +6,18 @@
 
 #include "parser.h"
 
+#define MAX_TREES (2 << 4)
+
 #define WIDTH 800
 #define HEIGHT 600
+
+typedef struct {
+    NodeTree *trees[MAX_TREES];
+    size_t count;
+} TreesBuffer; 
+
+Color graph_colors[] = { RED, GREEN, PURPLE };
+const size_t graph_colors_count = sizeof(graph_colors) / sizeof(graph_colors[0]);
 
 Vector2 screen(float x, float y, int scale)
 {
@@ -17,18 +27,32 @@ Vector2 screen(float x, float y, int scale)
     };
 }
 
-int main(int argc, char **argv)
+TreesBuffer parse_input_trees(int argc, char *argv[])
 {
     if (argc < 2) {
-        fprintf(stderr, "USAGE: %s expression\n", argv[0]);
+        fprintf(stderr, "USAGE: %s expressions\n", argv[0]);
         exit(1);
     }
-
+    TreesBuffer res = {0};
     char expression[256];
-    strncpy(expression, argv[1], sizeof(expression));
-    NodeTree *tree = tree_parse(expression);
+    for (int i = 1; i < argc; i++) {
+        strncpy(expression, argv[i], sizeof(expression));
+        NodeTree *tree = tree_parse(expression);
+        if (tree == NULL) {
+            fprintf(stderr, "Duck\n");
+            exit(EXIT_FAILURE);
+        }
+        res.trees[i-1] = tree;
+    }
+    res.count = argc - 1;
+    return res;
+}
 
-    InitWindow(WIDTH, HEIGHT, "Plotter");
+int main(int argc, char *argv[])
+{
+    TreesBuffer trees_buf = parse_input_trees(argc, argv);
+
+    InitWindow(WIDTH, HEIGHT, "Decmoc");
     SetTargetFPS(5);
 
     RenderTexture2D texture = LoadRenderTexture(WIDTH, HEIGHT);
@@ -43,14 +67,14 @@ int main(int argc, char **argv)
     int scale = 1;
     float wheel;
     while (WindowShouldClose() == 0) {
-        if (GetKeyPressed() == KEY_ENTER) {
-            printf("f(x): ");
-            fgets(expression, sizeof(expression), stdin);
-            expression[strcspn(expression, "\n")] = '\0';
-            printf("%s\n", expression);
-            tree = tree_parse(expression);
-            ClearBackground(BLACK);
-        }
+        //if (GetKeyPressed() == KEY_ENTER) {
+        //    printf("f(x): ");
+        //    fgets(expression, sizeof(expression), stdin);
+        //    expression[strcspn(expression, "\n")] = '\0';
+        //    printf("%s\n", expression);
+        //    tree = tree_parse(expression);
+        //    ClearBackground(BLACK);
+        //}
 
         BeginDrawing();
 
@@ -61,9 +85,13 @@ int main(int argc, char **argv)
             ClearBackground(BLACK);
         }
 
-        for (float x = -scale; x <= scale; x += 0.005) {
-            float y = tree_eval(tree, x);
-            DrawPixelV(screen(x, y, scale), RED);
+        // Draw the graphs
+        for (size_t i = 0; i < trees_buf.count; i++) {
+            for (float x = -scale; x <= scale; x += 0.005) {
+                float y = tree_eval(trees_buf.trees[i], x);
+                Color color = graph_colors[i % graph_colors_count];
+                DrawPixelV(screen(x, y, scale), color);
+            }
         }
 
         EndDrawing();
