@@ -2,6 +2,7 @@
 Var:      char
 Number:   {digit}+(.{digit}+)? | .{digit}+
 Function: sin | cos | exp
+Constant: PI/pi | E/e | PHI/phi
 */
 
 #include <stdio.h>
@@ -18,6 +19,10 @@ Function: sin | cos | exp
 #define COS_STR "cos"
 #define EXP_STR "exp"
 
+#define PI_STR  "pi"
+#define E_STR   "e"
+#define PHI_STR "phi"
+
 typedef enum {
     TK_VAR = 1,
     TK_INT,
@@ -30,6 +35,7 @@ typedef enum {
     TK_DIV,
     TK_POW,
     TK_FUNC,
+    TK_CONST,
     TK_EOF,
     TK_ERROR
 } TOKEN_KIND;
@@ -39,6 +45,12 @@ typedef enum {
     COS,
     EXP
 } FUNC; 
+
+typedef enum {
+    PI,
+    E,
+    PHI
+} CONST; 
 
 typedef struct {
     char str[PRINT_BUFFER_CAP];
@@ -124,6 +136,23 @@ static LexPrintBuffer token_func_print(Token *tk)
     return buf;
 }
 
+static LexPrintBuffer token_const_print(Token *tk)
+{
+    LexPrintBuffer buf = {0};
+    switch (tk->value.i) {
+        case PI:
+            snprintf(buf.str, PRINT_BUFFER_CAP, "Const: %s", PI_STR);
+            break;
+        case E:
+            snprintf(buf.str, PRINT_BUFFER_CAP, "Const: %s", E_STR);
+            break;
+        case PHI:
+            snprintf(buf.str, PRINT_BUFFER_CAP, "Const: %s", PHI_STR);
+            break;
+    }
+    return buf;
+}
+
 static LexPrintBuffer token_eof_print(Token *tk)
 {
     LexPrintBuffer buf = {0};
@@ -164,6 +193,12 @@ static Token token_literal_make(TOKEN_KIND kind, char val)
     return tk;
 }
 
+static Token token_const_make(CONST _const)
+{
+    Token tk = { .kind = TK_CONST, .value.i = _const, .print = &token_const_print };
+    return tk;
+}
+
 static Token token_eof_make()
 {
     Token tk = { .kind = TK_EOF };
@@ -184,7 +219,7 @@ static Token token_error_make(const char *msg)
 
 int token_int_get(Token *tk)
 {
-    assert(tk->kind == TK_INT || tk->kind == TK_FUNC);
+    assert(tk->kind == TK_INT);
     return tk->value.i;
 }
 
@@ -200,7 +235,13 @@ FUNC token_func_get(Token *tk)
     return tk->value.i;
 }
 
-char *token_string_get(Token *tk)
+CONST token_const_get(Token *tk)
+{
+    assert(tk->kind == TK_CONST);
+    return tk->value.i;
+}
+
+char *token_error_get(Token *tk)
 {
     assert(tk->kind == TK_ERROR);
     return tk->value.s;
@@ -267,15 +308,25 @@ static Token token_next(Lexer *l)
         }
     } else if (isalpha(l->content[l->pos])) {
         const char *str_ptr = l->content + l->pos;
-        if (strncmp(str_ptr, SIN_STR, strlen(SIN_STR)) == 0) {
+        // TODO: this condition chain can be shrinked
+        if (strncasecmp(str_ptr, SIN_STR, strlen(SIN_STR)) == 0) {
             l->pos += strlen(SIN_STR);
             RETURN_TOKEN(token_func_make, SIN);
-        } else if (strncmp(str_ptr, COS_STR, strlen(COS_STR)) == 0) {
+        } else if (strncasecmp(str_ptr, COS_STR, strlen(COS_STR)) == 0) {
             l->pos += strlen(COS_STR);
             RETURN_TOKEN(token_func_make, COS);
-        } else if (strncmp(str_ptr, EXP_STR, strlen(EXP_STR)) == 0) {
+        } else if (strncasecmp(str_ptr, EXP_STR, strlen(EXP_STR)) == 0) {
             l->pos += strlen(EXP_STR);
             RETURN_TOKEN(token_func_make, EXP);
+        } else if (strncasecmp(str_ptr, PI_STR, strlen(PI_STR)) == 0) {
+            l->pos += strlen(PI_STR);
+            RETURN_TOKEN(token_const_make, PI);
+        } else if (strncasecmp(str_ptr, E_STR, strlen(E_STR)) == 0) {
+            l->pos += strlen(E_STR);
+            RETURN_TOKEN(token_const_make, E);
+        } else if (strncasecmp(str_ptr, PHI_STR, strlen(PHI_STR)) == 0) {
+            l->pos += strlen(PHI_STR);
+            RETURN_TOKEN(token_const_make, PHI);
         } else {
             l->pos += 1;
             RETURN_TOKEN(token_var_make, *str_ptr);
@@ -285,7 +336,7 @@ static Token token_next(Lexer *l)
         RETURN_TOKEN(token_literal_make, char_to_token[(int) c], c);
     } else {
         char error_msg[MAX_STRING_LEN+1];
-        snprintf(error_msg, MAX_STRING_LEN+1, "unexpected symbol %c at %zu\n", c, l->pos);
+        snprintf(error_msg, MAX_STRING_LEN+1, "unexpected symbol %c at %zu", c, l->pos);
         RETURN_TOKEN(token_error_make, error_msg);
     }
 }
@@ -318,22 +369,22 @@ Lexer lexer_create(const char *content)
     return l;
 }
 
-#if 0
-int main(void)
-{
-    char *expr = "1-1 + xsincos * cosexp - -.69 + d / 2^d?";
-    Lexer lexer = lexer_create(expr);
-    Token tk = {0};
+#ifdef MAIN
+    int main(void)
+    {
+        char *expr = "1-1 + xsincos * cosEXP - -.69 + PI / 2^d?";
+        Lexer lexer = lexer_create(expr);
+        Token tk = {0};
 
-    printf("%s\n", expr);
-    do {
-        tk = lexer_current(&lexer);
-        if (tk.kind == TK_ERROR) {
-            fprintf(stderr, "ERROR (LEXER): %s\n", token_string_get(&tk));
-            return 1;
-        }
-        LexPrintBuffer res = tk.print(&tk);
-        printf("%s\n", res.str);
-    } while ((tk = lexer_next(&lexer)).kind != TK_EOF);
-}
+        printf("%s\n", expr);
+        do {
+            tk = lexer_current(&lexer);
+            if (tk.kind == TK_ERROR) {
+                fprintf(stderr, "ERROR (LEXER): %s\n", token_error_get(&tk));
+                return 1;
+            }
+            LexPrintBuffer res = tk.print(&tk);
+            printf("%s\n", res.str);
+        } while ((tk = lexer_next(&lexer)).kind != TK_EOF);
+    }
 #endif

@@ -5,21 +5,28 @@
 #include <math.h>
 
 #include "parser.h"
-
-#define MAX_TREES (2 << 4)
+#include "vector_utils.c"
 
 #define WIDTH 800
 #define HEIGHT 600
+#define BACKGROUND RAYWHITE
+#define FOREGROUND BLACK
+
+#define MAX_TREES (2 << 4)
+#define STEP 0.005
 
 typedef struct {
     NodeTree *trees[MAX_TREES];
     size_t count;
 } TreesBuffer; 
 
-Color graph_colors[] = { RED, GREEN, PURPLE };
-const size_t graph_colors_count = sizeof(graph_colors) / sizeof(graph_colors[0]);
+TreesBuffer ParseInputTrees(int argc, char *argv[]);
 
-Vector2 screen(float x, float y, int scale)
+Color graphColors[] = { RED, GREEN, PURPLE };
+const size_t graphColorsCount = sizeof(graphColors) / sizeof(graphColors[0]);
+
+// Convert coordinates in the [-1, 1] range to the corresponding screen coordinates 
+Vector2 Screen(float x, float y, float scale)
 {
     return (Vector2) {
         .x = (x + scale)/(2*scale) * WIDTH,
@@ -27,7 +34,85 @@ Vector2 screen(float x, float y, int scale)
     };
 }
 
-TreesBuffer parse_input_trees(int argc, char *argv[])
+void DrawArrow(Vector2 start, Vector2 end, float size, Color color)
+{
+    Vector2 dir = Vec2Normalize(Vec2Subtract(end, start));
+    Vector2 perp = (Vector2) { -dir.y, dir.x };
+    
+    Vector2 p1 = end;
+    Vector2 p2 = Vec2Subtract(end, Vec2Scale(Vec2Add(dir, perp), size));
+    Vector2 p3 = Vec2Subtract(end, Vec2Scale(Vec2Subtract(dir, perp), size));
+    
+    DrawLineEx(start, end, 2, color);
+    DrawTriangle(p1, p2, p3, color);
+}
+
+RenderTexture2D CreateAxesTexture()
+{
+    RenderTexture2D texture = LoadRenderTexture(WIDTH, HEIGHT);
+    BeginTextureMode(texture);
+        DrawArrow(Screen(-1, 0, 1), Screen(1, 0, 1), 8, FOREGROUND);
+        DrawArrow(Screen(0, 1, 1), Screen(0, -1, 1), 8, FOREGROUND);
+    EndTextureMode();
+    return texture;
+}
+
+void DrawAxes(RenderTexture2D axesTexture)
+{
+    DrawTextureRec(axesTexture.texture,
+                   (Rectangle) { 0, 0, WIDTH, HEIGHT },
+                   (Vector2) { 0, 0 }, FOREGROUND);
+}
+
+void DrawGraphs(TreesBuffer *treesBuf, float scale)
+{
+    for (size_t i = 0; i < treesBuf->count; i++) {
+        for (float x = -scale; x <= scale; x += STEP) {
+            float y = tree_eval(treesBuf->trees[i], x);
+            Color color = graphColors[i % graphColorsCount];
+            DrawPixelV(Screen(x, y, scale), color);
+        }
+    }
+}
+
+float GetCurrentScale()
+{
+    static float scale = 1;
+    static float wheel = 0;
+    if (wheel = GetMouseWheelMove()) {
+        scale += -wheel/2;
+        ClearBackground(BACKGROUND);
+    }
+    return scale;
+}
+
+int main(int argc, char *argv[])
+{
+    TreesBuffer treesBuf = ParseInputTrees(argc, argv);
+
+    InitWindow(WIDTH, HEIGHT, "Decmoc");
+    SetTargetFPS(20);
+
+    RenderTexture2D axesTexture = CreateAxesTexture();
+
+    float scale = GetCurrentScale();
+    float wheel;
+
+    while (!WindowShouldClose()) {
+        BeginDrawing();
+            ClearBackground(RAYWHITE);
+            DrawAxes(axesTexture);
+            scale = GetCurrentScale();
+            DrawGraphs(&treesBuf, scale);
+        EndDrawing();
+    }
+
+    CloseWindow();
+
+    return 0;
+}
+
+TreesBuffer ParseInputTrees(int argc, char *argv[])
 {
     if (argc < 2) {
         fprintf(stderr, "USAGE: %s expressions\n", argv[0]);
@@ -46,58 +131,4 @@ TreesBuffer parse_input_trees(int argc, char *argv[])
     }
     res.count = argc - 1;
     return res;
-}
-
-int main(int argc, char *argv[])
-{
-    TreesBuffer trees_buf = parse_input_trees(argc, argv);
-
-    InitWindow(WIDTH, HEIGHT, "Decmoc");
-    SetTargetFPS(5);
-
-    RenderTexture2D texture = LoadRenderTexture(WIDTH, HEIGHT);
-    
-    BeginTextureMode(texture);
-    
-    DrawLine(0, HEIGHT/2, WIDTH, HEIGHT/2, RAYWHITE);
-    DrawLine(WIDTH/2, 0, WIDTH/2, HEIGHT, RAYWHITE);
-    
-    EndTextureMode();
-
-    int scale = 1;
-    float wheel;
-    while (WindowShouldClose() == 0) {
-        //if (GetKeyPressed() == KEY_ENTER) {
-        //    printf("f(x): ");
-        //    fgets(expression, sizeof(expression), stdin);
-        //    expression[strcspn(expression, "\n")] = '\0';
-        //    printf("%s\n", expression);
-        //    tree = tree_parse(expression);
-        //    ClearBackground(BLACK);
-        //}
-
-        BeginDrawing();
-
-        DrawTextureRec(texture.texture, (Rectangle){ 0, 0, WIDTH, HEIGHT }, (Vector2){ 0, 0 }, WHITE);
-
-        if (wheel = GetMouseWheelMove()) {
-            scale += -wheel;
-            ClearBackground(BLACK);
-        }
-
-        // Draw the graphs
-        for (size_t i = 0; i < trees_buf.count; i++) {
-            for (float x = -scale; x <= scale; x += 0.005) {
-                float y = tree_eval(trees_buf.trees[i], x);
-                Color color = graph_colors[i % graph_colors_count];
-                DrawPixelV(screen(x, y, scale), color);
-            }
-        }
-
-        EndDrawing();
-    }
-
-    CloseWindow();
-
-    return 0;
 }

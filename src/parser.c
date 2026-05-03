@@ -14,7 +14,7 @@ Func: sin | cos | exp
 #include <float.h>
 
 #include "lexer.c"
-#include "utils.c"
+#include "basic_utils.c"
 
 #include "parser.h"
 
@@ -57,6 +57,12 @@ typedef struct {
     NODETREE_HEAD
     float value;
 } NodeNumber;
+
+static float const_to_float[] = {
+    [PI]  = 3.14f,
+    [E]   = 2.71f,
+    [PHI] = 1.62f
+};
 
 #define MAKE_NODE_BINARY_MAKE_FUNC(name)                                     \
     static NodeBinary *node_##name##_make(NodeTree *left, NodeTree *right)   \
@@ -182,6 +188,7 @@ static PrintBuffer node_func_print(void *self)
     }
     int str_len = strlen(func_str) + strlen(arg_buf.str) + 5;
     assert(PRINT_BUFFER_CAP >= str_len);
+    // The condition is used to silence the "-Wformat-truncation" warning
     snprintf(buf.str, PRINT_BUFFER_CAP, "(%s(%s))",
              func_str, arg_buf.str) < 0 ?
              exit(EXIT_FAILURE) : (void) 0;
@@ -195,6 +202,7 @@ static PrintBuffer node_negate_print(void *self)
     PrintBuffer arg_buf = node->arg->vtable->print(node->arg);
     int str_len = strlen(arg_buf.str) + 4;
     assert(PRINT_BUFFER_CAP >= str_len);
+    // The condition is used to silence the "-Wformat-truncation" warning
     snprintf(buf.str, PRINT_BUFFER_CAP, "-(%s)", arg_buf.str) < 0 ?
              exit(EXIT_FAILURE) : (void) 0;
     return buf;
@@ -425,12 +433,16 @@ static NodeTree *primary(Lexer *l)
 static NodeTree *factor(Lexer *l)
 {
     Token curr_tk = lexer_current(l);
-    if (curr_tk.kind == TK_INT || curr_tk.kind == TK_DEC) {
+    if (curr_tk.kind == TK_INT) {
         lexer_next(l);
-        if (curr_tk.kind == TK_INT)
-            return (NodeTree *) node_number_make(token_int_get(&curr_tk));
-        else if (curr_tk.kind == TK_DEC)
-            return (NodeTree *) node_number_make(token_dec_get(&curr_tk));
+        return (NodeTree *) node_number_make(token_int_get(&curr_tk));
+    } else if (curr_tk.kind == TK_DEC) {
+        lexer_next(l);
+        return (NodeTree *) node_number_make(token_dec_get(&curr_tk));
+    } else if (curr_tk.kind == TK_CONST) {
+        lexer_next(l);
+        CONST constt = token_const_get(&curr_tk);
+        return (NodeTree *) node_number_make(const_to_float[constt]);
     } else if (curr_tk.kind == TK_VAR) {
         lexer_next(l);
         return (NodeTree *) node_var_make(token_var_get(&curr_tk));
@@ -470,7 +482,7 @@ static NodeTree *factor(Lexer *l)
         lexer_next(l);
         return (NodeTree *) func;
     } else if (curr_tk.kind == TK_ERROR) {
-        fprintf(stderr, "ERROR (lexer): %s\n", token_string_get(&curr_tk));
+        fprintf(stderr, "ERROR (lexer): %s\n", token_error_get(&curr_tk));
         return NULL;
     } else {
         LexPrintBuffer tk_buf = curr_tk.print(&curr_tk);
@@ -488,6 +500,7 @@ NodeTree *tree_parse(const char *src)
         return NULL;
     if (lexer_current(&lexer).kind != TK_EOF) {
         fprintf(stderr, "ERROR (parser): invalid expression\n");
+        result->vtable->free(result);
         return NULL;
     }
     return result;
@@ -510,18 +523,26 @@ void tree_free(NodeTree *tree)
 }
 
 #ifdef PARSER_MAIN
-int main(void)
-{
-    char *expr = "2cos(0)";
+    int main(void)
+    {
+        char *expr = NULL;
+        size_t len = 0;
+        ssize_t nread = 0;
+        while (true) {
+            printf("Expr: ");
+            if ((nread = getline(&expr, &len, stdin)) == -1)
+                break;
+            expr[nread - 1] = '\0';
 
-    NodeTree *result = tree_parse(expr);
-    if (!result) return 1;
+            NodeTree *result = tree_parse(expr);
+            if (!result) continue;
 
-    tree_print(result);
-    printf("%.2f\n", tree_eval(result, 1));
+            tree_print(result);
+            printf("%.2f\n", tree_eval(result, 1));
 
-    tree_free(result);
+            tree_free(result);
+        }
 
-    return 0;
-}
+        return 0;
+    }
 #endif

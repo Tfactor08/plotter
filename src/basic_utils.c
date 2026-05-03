@@ -1,4 +1,4 @@
-#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <math.h>
 
@@ -29,18 +29,16 @@ void itoa(int n, char *s)
 
 size_t int_len(int n)
 {
-    size_t len = 0;
-    do {
-        len += 1;
-    } while ((n /= 10) > 0);
-    return len;
+    return log10(abs(n)) + 1;
 }
 
-#if 0
-int main(void)
-{
-    printf("%zu\n", int_len(1000));
+#ifdef MAIN
+    #include <stdio.h>
 
-    return 0;
-}
+    int main(void)
+    {
+        printf("%zu\n", int_len(-90));
+
+        return 0;
+    }
 #endif
